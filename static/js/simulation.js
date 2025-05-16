@@ -10,6 +10,28 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let stationMarkers = {};
 let trainMarkers = [];
 
+// 현재 시각 상태 (슬라이더와 연결)
+let currentSimTime = null;
+
+// ⏱️ 시간 슬라이더 연결
+const timeSlider = document.getElementById("timeSlider");
+const timeLabel = document.getElementById("timeLabel");
+
+// 초기 시각 설정
+function getTimeStringFromMinutes(mins) {
+  const h = String(Math.floor(mins / 60)).padStart(2, "0");
+  const m = String(mins % 60).padStart(2, "0");
+  return `${h}:${m}:00`;
+}
+currentSimTime = getTimeStringFromMinutes(parseInt(timeSlider.value));
+timeLabel.innerText = currentSimTime;
+
+timeSlider.addEventListener("input", () => {
+  currentSimTime = getTimeStringFromMinutes(parseInt(timeSlider.value));
+  timeLabel.innerText = currentSimTime;
+  updateTrains();
+});
+
 // 1. 역 정보 시각화
 fetch('/api/stations')
   .then(res => res.json())
@@ -54,30 +76,37 @@ fetch('/api/lines')
     }
   });
 
-// 3. 시간표 기반 열차 시각화
+// 3. 열차 시각화 함수
+let timetableData = [];
+
+function updateTrains() {
+  // 기존 마커 제거
+  trainMarkers.forEach(m => map.removeLayer(m));
+  trainMarkers = [];
+
+  const activeTrains = timetableData.filter(row => {
+    return row.ARRIVETIME <= currentSimTime && row.LEFTTIME >= currentSimTime;
+  });
+
+  activeTrains.forEach(train => {
+    const coord = stationMarkers[train.STATION_NM];
+    if (coord) {
+      const marker = L.circleMarker(coord, {
+        radius: 6,
+        color: 'red',
+        fillColor: 'red',
+        fillOpacity: 0.9
+      }).bindPopup(`🚆 ${train.LINE_NUM}<br>${train.TRAIN_NO}<br>→ ${train.SUBWAYENAME}`);
+      trainMarkers.push(marker);
+      marker.addTo(map);
+    }
+  });
+}
+
+// 4. 시간표 데이터 불러오기 및 초기 표시
 fetch('/api/timetable')
   .then(res => res.json())
   .then(data => {
-    // 현재 시간 기준 필터링
-    const now = new Date();
-    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:00`;
-
-    const activeTrains = data.filter(row => {
-      return row.ARRIVETIME <= currentTime && row.LEFTTIME >= currentTime;
-    });
-
-    // 지도에 열차 마커 표시
-    activeTrains.forEach(train => {
-      const coord = stationMarkers[train.STATION_NM];
-      if (coord) {
-        const marker = L.circleMarker(coord, {
-          radius: 6,
-          color: 'red',
-          fillColor: 'red',
-          fillOpacity: 0.9
-        }).bindPopup(`🚆 ${train.LINE_NUM}<br>${train.TRAIN_NO}<br>→ ${train.SUBWAYENAME}`);
-        trainMarkers.push(marker);
-        marker.addTo(map);
-      }
-    });
+    timetableData = data;
+    updateTrains();
   });
