@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 import pandas as pd
 import os
 import json
@@ -44,7 +44,12 @@ def lines():
 # ✅ 열차 실시간 위치 추정 (시뮬레이션용)
 @app.route("/api/simulation_data")
 def simulation_data():
-    now = datetime.now().strftime("%H:%M:%S")
+    req_time = request.args.get("time", None)
+    if not req_time:
+        return jsonify([])
+
+    now = req_time  # 슬라이더에서 받은 시각 문자열 (e.g. "08:02:00")
+
     active_trains = []
 
     for _, row in df_timetable.iterrows():
@@ -56,7 +61,6 @@ def simulation_data():
 
         if left_time < now < next_arrive_time:
             try:
-                # 시간 보간 계산
                 t1 = datetime.strptime(left_time, "%H:%M:%S")
                 t2 = datetime.strptime(next_arrive_time, "%H:%M:%S")
                 t_now = datetime.strptime(now, "%H:%M:%S")
