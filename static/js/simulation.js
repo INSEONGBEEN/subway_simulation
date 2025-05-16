@@ -92,42 +92,54 @@ document.getElementById("start-btn").addEventListener("click", () => {
 });
 
 // 📌 4. 열차 위치 시각화 (선택한 시각 기준)
-data.forEach(train => {
-  const from = train.from;
-  const to = train.to;
-  const p = train.progress;
-  const line = train.line;
+function updateSimulatedTrains() {
+  fetch(`/api/simulation_data?time=${currentSimTime}`)
+    .then(res => res.json())
+    .then(data => {
+      trainMarkers.forEach(m => map.removeLayer(m));
+      trainMarkers = [];
 
-  const coord1 = stationMarkers[from];
-  const coord2 = stationMarkers[to];
+      data.forEach(train => {
+        const from = train.from;
+        const to = train.to;
+        const p = train.progress;
+        const line = train.line;
 
-  if (coord1 && coord2) {
-    const lat = coord1[0] + (coord2[0] - coord1[0]) * p;
-    const lon = coord1[1] + (coord2[1] - coord1[1]) * p;
+        const coord1 = stationMarkers[from];
+        const coord2 = stationMarkers[to];
 
-    const color = lineColors[line] || "gray";
+        if (coord1 && coord2) {
+          const lat = coord1[0] + (coord2[0] - coord1[0]) * p;
+          const lon = coord1[1] + (coord2[1] - coord1[1]) * p;
 
-    const icon = L.divIcon({
-      className: 'emoji-icon',
-      html: `<div style="
-        font-size: 16px;
-        border: 2px solid ${color};
-        border-radius: 50%;
-        width: 28px;
-        height: 28px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: white;
-      ">🚇</div>`,
-      iconSize: [28, 28],
-      iconAnchor: [14, 14]
+          const color = lineColors[line] || "gray";
+
+          const icon = L.divIcon({
+            className: 'emoji-icon',
+            html: `<div style="
+              font-size: 16px;
+              border: 2px solid ${color};
+              border-radius: 50%;
+              width: 28px;
+              height: 28px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background-color: white;
+            ">🚇</div>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+          });
+
+          const marker = L.marker([lat, lon], { icon: icon })
+            .bindPopup(`🚆 ${line}<br>${train.train_no}<br>→ ${train.to}`);
+
+          trainMarkers.push(marker);
+          marker.addTo(map);
+        }
+      });
+    })
+    .catch(err => {
+      console.error("🚨 시뮬레이션 데이터 로딩 실패:", err);
     });
-
-    const marker = L.marker([lat, lon], { icon: icon })
-      .bindPopup(`🚆 ${line}<br>${train.train_no}<br>→ ${train.to}`);
-
-    trainMarkers.push(marker);
-    marker.addTo(map);
-  }
-});
+}
