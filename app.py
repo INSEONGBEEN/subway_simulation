@@ -80,8 +80,7 @@ def simulation_data():
                     'line': row['LINE_NUM'],
                     'from': row['STATION_NM'],
                     'to': row['NEXT_STATION'],
-                    'lat': lat,
-                    'lon': lon
+                    'progress': progress  # 이걸 같이 넘겨줘야 JS에서 쓸 수 있어
                 })
 
         except Exception as e:
