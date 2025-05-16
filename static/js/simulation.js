@@ -92,22 +92,42 @@ document.getElementById("start-btn").addEventListener("click", () => {
 });
 
 // 📌 4. 열차 위치 시각화 (선택한 시각 기준)
-function updateSimulatedTrains() {
-  fetch(`/api/simulation_data?time=${currentSimTime}`)
-    .then(res => res.json())
-    .then(data => {
-      trainMarkers.forEach(m => map.removeLayer(m));
-      trainMarkers = [];
+data.forEach(train => {
+  const from = train.from;
+  const to = train.to;
+  const p = train.progress;
+  const line = train.line;
 
-      data.forEach(train => {
-        const marker = L.circleMarker([train.lat, train.lon], {
-          radius: 6,
-          color: 'red',
-          fillColor: 'red',
-          fillOpacity: 0.9
-        }).bindPopup(`🚆 ${train.line}<br>${train.train_no}<br>→ ${train.to}`);
-        trainMarkers.push(marker);
-        marker.addTo(map);
-      });
+  const coord1 = stationMarkers[from];
+  const coord2 = stationMarkers[to];
+
+  if (coord1 && coord2) {
+    const lat = coord1[0] + (coord2[0] - coord1[0]) * p;
+    const lon = coord1[1] + (coord2[1] - coord1[1]) * p;
+
+    const color = lineColors[line] || "gray";
+
+    const icon = L.divIcon({
+      className: 'emoji-icon',
+      html: `<div style="
+        font-size: 16px;
+        border: 2px solid ${color};
+        border-radius: 50%;
+        width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: white;
+      ">🚇</div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
     });
-}
+
+    const marker = L.marker([lat, lon], { icon: icon })
+      .bindPopup(`🚆 ${line}<br>${train.train_no}<br>→ ${train.to}`);
+
+    trainMarkers.push(marker);
+    marker.addTo(map);
+  }
+});
