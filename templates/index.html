@@ -4,7 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>🚇 지하철 시뮬레이션</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+  <!-- ✅ 경로 수정 완료 -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+  <!-- 외부 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" />
@@ -35,7 +39,7 @@
 
   <div id="map" style="height: 90vh;"></div>
 
-  <!-- JS 연결 -->
+  <!-- ✅ JS는 항상 맨 마지막에 연결 -->
   <script src="{{ url_for('static', filename='js/simulation.js') }}"></script>
 </body>
 </html>
