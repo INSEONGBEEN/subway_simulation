@@ -8,13 +8,10 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 // 마커 저장용
 let stationMarkers = {};
-let trainMarkers = {}; // 🔄 train_no 기준 객체로
-let simInterval = null;  // 시뮬레이션 타이머
+let trainMarkers = {}; // train_no + line 조합으로 관리
+let simInterval = null;
+let virtualMinutes = parseInt(document.getElementById("timeSlider").value); // 가상 시각
 
-// 가상 시간 (float)
-let virtualTime = 480.0;  // 08:00 시작
-
-// 슬라이더 및 라벨
 const timeSlider = document.getElementById("timeSlider");
 const timeLabel = document.getElementById("timeLabel");
 
@@ -24,14 +21,12 @@ function getTimeStringFromMinutes(mins) {
   return `${h}:${m}:00`;
 }
 
-timeSlider.value = Math.floor(virtualTime);
-timeLabel.innerText = getTimeStringFromMinutes(virtualTime);
+function updateTimeDisplay() {
+  timeLabel.innerText = getTimeStringFromMinutes(virtualMinutes);
+  timeSlider.value = Math.floor(virtualMinutes);
+}
 
-timeSlider.addEventListener("input", () => {
-  virtualTime = parseInt(timeSlider.value);
-  timeLabel.innerText = getTimeStringFromMinutes(virtualTime);
-  updateSimulatedTrains();
-});
+updateTimeDisplay();
 
 const lineColors = {
   "1호선": "blue",
@@ -44,14 +39,12 @@ const lineColors = {
   "8호선": "pink"
 };
 
-// 📌 1. 역 불러오기 및 선로 그리기
 fetch('/api/stations')
   .then(res => res.json())
   .then(stations => {
     stations.forEach(station => {
       const lineName = `${station.호선}호선`;
       const color = lineColors[lineName] || 'gray';
-
       const marker = L.circleMarker([station.위도, station.경도], {
         radius: 3,
         color: color,
@@ -81,29 +74,25 @@ fetch('/api/stations')
       });
   });
 
-// ▶️ 시뮬레이션 시작
 document.getElementById("start-btn").addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   simInterval = setInterval(() => {
-    if (virtualTime < 1439) {
-      virtualTime += 0.2;
-      timeSlider.value = Math.floor(virtualTime);
-      timeLabel.innerText = getTimeStringFromMinutes(virtualTime);
-      updateSimulatedTrains();
-    } else {
+    virtualMinutes += 0.2;
+    if (virtualMinutes >= 1440) {
       clearInterval(simInterval);
+      return;
     }
-  }, 500); // 0.5초마다 0.2분씩 진행
+    updateTimeDisplay();
+    updateSimulatedTrains();
+  }, 500); // 0.5초마다 0.2분 진행
 });
 
-// ⏹️ 초기화
 document.getElementById("reset-btn").addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   Object.values(trainMarkers).forEach(m => map.removeLayer(m));
   trainMarkers = {};
 });
 
-// 🚇 애니메이션 이동
 function animateMove(marker, fromLatLng, toLatLng, duration = 500) {
   const start = performance.now();
   function step(timestamp) {
@@ -116,14 +105,13 @@ function animateMove(marker, fromLatLng, toLatLng, duration = 500) {
   requestAnimationFrame(step);
 }
 
-// 📌 열차 위치 시각화
 function updateSimulatedTrains() {
-  const currentTimeStr = getTimeStringFromMinutes(virtualTime);
+  const timeStr = getTimeStringFromMinutes(virtualMinutes);
 
-  fetch(`/api/simulation_data?time=${currentTimeStr}`)
+  fetch(`/api/simulation_data?time=${timeStr}`)
     .then(res => res.json())
     .then(data => {
-      const activeIds = new Set();
+      const activeKeys = new Set();
 
       data.forEach(train => {
         const from = train.from;
@@ -158,14 +146,16 @@ function updateSimulatedTrains() {
           iconAnchor: [7, 7]
         });
 
-        const key = train.train_no;
-        activeIds.add(key);
+        const key = `${train.train_no}_${line}`;
+        activeKeys.add(key);
 
         if (trainMarkers[key]) {
           const currentLatLng = trainMarkers[key].getLatLng();
-          animateMove(trainMarkers[key], currentLatLng, L.latLng(lat, lon));
+          if (!isNaN(lat) && !isNaN(lon)) {
+            animateMove(trainMarkers[key], currentLatLng, L.latLng(lat, lon));
+          }
         } else {
-          const marker = L.marker([lat, lon], { icon: icon }).bindPopup(`🚆 ${line}<br>${train.train_no}<br>→ ${train.to}`);
+          const marker = L.marker([lat, lon], { icon }).bindPopup(`🚆 ${line}<br>${train.train_no}<br>→ ${train.to}`);
           trainMarkers[key] = marker;
           marker.addTo(map);
         }
@@ -173,7 +163,7 @@ function updateSimulatedTrains() {
 
       // ❌ 지나간 열차 제거
       for (const key in trainMarkers) {
-        if (!activeIds.has(key)) {
+        if (!activeKeys.has(key)) {
           map.removeLayer(trainMarkers[key]);
           delete trainMarkers[key];
         }
