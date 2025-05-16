@@ -150,14 +150,14 @@ function updateSimulatedTrains() {
             color: white;
             border: 2px solid ${color};
             border-radius: 50%;
-            width: 28px;
-            height: 28px;
+            width: 14px;
+            height: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
             background-color: ${color};
           ">🚇</div>`,
-          iconSize: [28, 28],
+          iconSize: [14, 14],
           iconAnchor: [14, 14]
         });
 
