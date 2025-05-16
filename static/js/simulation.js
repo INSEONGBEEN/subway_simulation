@@ -8,7 +8,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 // 마커 저장용
 let stationMarkers = {};
-let trainMarkers = [];
+let trainMarkers = {}; // 🔄 이제는 객체로 (train_no 기준)
 let simInterval = null;  // 시뮬레이션 재생 타이머
 
 // 현재 시각 상태 (슬라이더와 연결)
@@ -18,22 +18,21 @@ let currentSimTime = null;
 const timeSlider = document.getElementById("timeSlider");
 const timeLabel = document.getElementById("timeLabel");
 
-// 초기 시각 설정
 function getTimeStringFromMinutes(mins) {
   const h = String(Math.floor(mins / 60)).padStart(2, "0");
   const m = String(mins % 60).padStart(2, "0");
   return `${h}:${m}:00`;
 }
+
 currentSimTime = getTimeStringFromMinutes(parseInt(timeSlider.value));
 timeLabel.innerText = currentSimTime;
 
 timeSlider.addEventListener("input", () => {
   currentSimTime = getTimeStringFromMinutes(parseInt(timeSlider.value));
   timeLabel.innerText = currentSimTime;
-  updateSimulatedTrains();  // 슬라이더 변경 시 열차 위치 갱신
+  updateSimulatedTrains();
 });
 
-// 노선별 색상 정의
 const lineColors = {
   "1호선": "blue",
   "2호선": "green",
@@ -45,14 +44,13 @@ const lineColors = {
   "8호선": "pink"
 };
 
-// 📌 역 정보 불러오기 → 완료되면 선로 연결도 실행
+// 📌 1. 역 불러오기 및 선로 그리기
 fetch('/api/stations')
   .then(res => res.json())
   .then(stations => {
     stations.forEach(station => {
       const lineName = `${station.호선}호선`;
       const color = lineColors[lineName] || 'gray';
-
       const marker = L.circleMarker([station.위도, station.경도], {
         radius: 3,
         color: color,
@@ -60,11 +58,9 @@ fetch('/api/stations')
         fillOpacity: 0.7
       }).bindPopup(`${station.역명} (${lineName})`).addTo(map);
 
-      // 📍 좌표 저장
       stationMarkers[station.역명] = [station.위도, station.경도];
     });
 
-    // ✅ 선로 연결
     fetch('/api/lines')
       .then(res => res.json())
       .then(lines => {
@@ -72,10 +68,7 @@ fetch('/api/stations')
           const baseLine = lineName.match(/\d+호선/);
           const color = baseLine ? lineColors[baseLine[0]] : 'gray';
 
-          const coords = stationList
-            .map(name => stationMarkers[name])
-            .filter(coord => coord !== undefined);
-
+          const coords = stationList.map(name => stationMarkers[name]).filter(Boolean);
           if (coords.length >= 2) {
             L.polyline(coords, {
               color: color,
@@ -87,11 +80,9 @@ fetch('/api/stations')
       });
   });
 
-// 📌 시뮬레이션 시작 버튼
-
+// ▶️ 시뮬레이션 시작
 document.getElementById("start-btn").addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
-
   simInterval = setInterval(() => {
     let value = parseInt(timeSlider.value);
     if (value < 1439) {
@@ -103,33 +94,43 @@ document.getElementById("start-btn").addEventListener("click", () => {
     } else {
       clearInterval(simInterval);
     }
-  }, 1000);  // 1초 간격으로 시각 증가
+  }, 1000);
 });
 
-// 🔄 초기화 버튼 → 시뮬레이션 중지 + 마커 삭제
-
+// ⏹️ 초기화
 document.getElementById("reset-btn").addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
-  trainMarkers.forEach(m => map.removeLayer(m));
-  trainMarkers = [];
+  Object.values(trainMarkers).forEach(m => map.removeLayer(m));
+  trainMarkers = {};
 });
 
-// 📌 열차 위치 시각화
+// 🚇 애니메이션 이동
+function animateMove(marker, fromLatLng, toLatLng, duration = 1000) {
+  const start = performance.now();
+  function step(timestamp) {
+    const progress = Math.min((timestamp - start) / duration, 1);
+    const lat = fromLatLng.lat + (toLatLng.lat - fromLatLng.lat) * progress;
+    const lng = fromLatLng.lng + (toLatLng.lng - fromLatLng.lng) * progress;
+    marker.setLatLng([lat, lng]);
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// 📌 4. 열차 위치 시각화
 function updateSimulatedTrains() {
   if (!currentSimTime) return;
 
   fetch(`/api/simulation_data?time=${currentSimTime}`)
     .then(res => res.json())
     .then(data => {
-      // 기존 마커 제거
-      trainMarkers.forEach(m => map.removeLayer(m));
-      trainMarkers = [];
+      const activeIds = new Set();
 
       data.forEach(train => {
         const from = train.from;
         const to = train.to;
         const p = train.progress;
-        const line = train.line;
+        const line = String(train.line).replace(/^0/, '').replace(/호선$/, '') + "호선";
 
         const coord1 = stationMarkers[from];
         const coord2 = stationMarkers[to];
@@ -137,18 +138,15 @@ function updateSimulatedTrains() {
 
         const lat = coord1[0] + (coord2[0] - coord1[0]) * p;
         const lon = coord1[1] + (coord2[1] - coord1[1]) * p;
-
-        const lineStr = String(line).replace(/^0/, '');
-        const lineKey = lineStr.endsWith("\ud638\uc120") ? lineStr : `${lineStr}호선`;
-        const color = lineColors[lineKey] || "gray";
+        const color = lineColors[line] || "gray";
 
         const icon = L.divIcon({
           className: 'emoji-icon',
           html: `<div style="
-            font-size: 16px;
+            font-size: 12px;
             font-weight: bold;
             color: white;
-            border: 2px solid ${color};
+            border: 1px solid ${color};
             border-radius: 50%;
             width: 14px;
             height: 14px;
@@ -161,14 +159,26 @@ function updateSimulatedTrains() {
           iconAnchor: [7, 7]
         });
 
-        const marker = L.marker([lat, lon], { icon: icon })
-          .bindPopup(`🚆 ${lineKey}<br>${train.train_no}<br>→ ${train.to}`);
+        const key = train.train_no;
+        activeIds.add(key);
 
-        trainMarkers.push(marker);
-        marker.addTo(map);
+        if (trainMarkers[key]) {
+          const currentLatLng = trainMarkers[key].getLatLng();
+          animateMove(trainMarkers[key], currentLatLng, L.latLng(lat, lon));
+        } else {
+          const marker = L.marker([lat, lon], { icon: icon }).bindPopup(`🚆 ${line}<br>${train.train_no}<br>→ ${train.to}`);
+          trainMarkers[key] = marker;
+          marker.addTo(map);
+        }
       });
+
+      // ❌ 지나간 열차 제거
+      for (const key in trainMarkers) {
+        if (!activeIds.has(key)) {
+          map.removeLayer(trainMarkers[key]);
+          delete trainMarkers[key];
+        }
+      }
     })
-    .catch(err => {
-      console.error("🚨 시뮬레이션 데이터 로딩 실패:", err);
-    });
+    .catch(err => console.error("🚨 시뮬레이션 데이터 로딩 실패:", err));
 }
