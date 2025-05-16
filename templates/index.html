@@ -12,6 +12,7 @@
 <body>
   <div id="controls">
     <h1>서울 지하철 실시간 시뮬레이션</h1>
+
     <label for="day-select">요일 선택:</label>
     <select id="day-select">
       <option value="1">평일</option>
@@ -24,9 +25,15 @@
 
     <button id="start-btn">시뮬레이션 시작</button>
     <button id="reset-btn">초기화</button>
+
+    <!-- ⏱️ 시간 슬라이더 추가 -->
+    <div style="margin-top: 10px;">
+      <input type="range" id="timeSlider" min="0" max="1439" value="480" />
+      <span id="timeLabel">08:00:00</span>
+    </div>
   </div>
 
-  <div id="map"></div>
+  <div id="map" style="height: 90vh;"></div>
 
   <!-- JS 연결 -->
   <script src="{{ url_for('static', filename='js/simulation.js') }}"></script>
