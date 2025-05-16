@@ -9,6 +9,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 // 마커 저장용
 let stationMarkers = {};
 let trainMarkers = [];
+let simInterval = null;  // 시뮬레이션 재생 타이머
 
 // 현재 시각 상태 (슬라이더와 연결)
 let currentSimTime = null;
@@ -63,7 +64,7 @@ fetch('/api/stations')
       stationMarkers[station.역명] = [station.위도, station.경도];
     });
 
-    // ✅ 2. 선로 연결 (역 정보 로딩 완료 후 실행)
+    // ✅ 2. 선로 연결
     fetch('/api/lines')
       .then(res => res.json())
       .then(lines => {
@@ -86,19 +87,39 @@ fetch('/api/stations')
       });
   });
 
-// 📌 3. 시뮬레이션 시작 버튼 연결
+// 📌 3. 시뮬레이션 시작 버튼
 document.getElementById("start-btn").addEventListener("click", () => {
-  updateSimulatedTrains();
+  if (simInterval) clearInterval(simInterval);
+
+  simInterval = setInterval(() => {
+    let value = parseInt(timeSlider.value);
+    if (value < 1439) {
+      value += 1;
+      timeSlider.value = value;
+      currentSimTime = getTimeStringFromMinutes(value);
+      timeLabel.innerText = currentSimTime;
+      updateSimulatedTrains();
+    } else {
+      clearInterval(simInterval);
+    }
+  }, 500);  // 0.5초 간격으로 시각 증가
 });
 
-// 📌 4. 열차 위치 시각화 (선택한 시각 기준)
+// 📌 초기화 버튼 → 시뮬레이션 중지 + 마커 삭제
+document.getElementById("reset-btn").addEventListener("click", () => {
+  if (simInterval) clearInterval(simInterval);
+  trainMarkers.forEach(m => map.removeLayer(m));
+  trainMarkers = [];
+});
+
+// 📌 4. 열차 위치 시각화
 function updateSimulatedTrains() {
   if (!currentSimTime) return;
 
   fetch(`/api/simulation_data?time=${currentSimTime}`)
     .then(res => res.json())
     .then(data => {
-      // ✅ 기존 마커 제거
+      // 기존 마커 제거
       trainMarkers.forEach(m => map.removeLayer(m));
       trainMarkers = [];
 
@@ -110,13 +131,15 @@ function updateSimulatedTrains() {
 
         const coord1 = stationMarkers[from];
         const coord2 = stationMarkers[to];
-
-        if (!coord1 || !coord2) return; // ⚠️ 역 좌표 없으면 무시
+        if (!coord1 || !coord2) return;
 
         const lat = coord1[0] + (coord2[0] - coord1[0]) * p;
         const lon = coord1[1] + (coord2[1] - coord1[1]) * p;
 
-        const color = lineColors[line] || "gray";
+        // ✅ 호선 문자열 통일
+        const lineStr = String(line).replace(/^0/, '');  // "03" → "3"
+        const lineKey = lineStr.endsWith("호선") ? lineStr : `${lineStr}호선`;
+        const color = lineColors[lineKey] || "gray";
 
         const icon = L.divIcon({
           className: 'emoji-icon',
@@ -138,7 +161,7 @@ function updateSimulatedTrains() {
         });
 
         const marker = L.marker([lat, lon], { icon: icon })
-          .bindPopup(`🚆 ${line}<br>${train.train_no}<br>→ ${train.to}`);
+          .bindPopup(`🚆 ${lineKey}<br>${train.train_no}<br>→ ${train.to}`);
 
         trainMarkers.push(marker);
         marker.addTo(map);
