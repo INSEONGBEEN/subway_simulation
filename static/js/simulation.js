@@ -1,32 +1,37 @@
-// 지도 초기화
-const map = L.map('map').setView([37.5665, 126.9780], 11); // 서울 중심
+const map = L.map('map').setView([37.5665, 126.9780], 11);
 
-// 타일 레이어
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
 }).addTo(map);
 
-// 마커 저장용
 let stationMarkers = {};
-let trainMarkers = {}; // train_no + line 조합으로 관리
+let trainMarkers = {};
 let simInterval = null;
-let virtualMinutes = parseInt(document.getElementById("timeSlider").value); // 가상 시각
+
+let currentSimTime = null;
 
 const timeSlider = document.getElementById("timeSlider");
 const timeLabel = document.getElementById("timeLabel");
 
 function getTimeStringFromMinutes(mins) {
   const h = String(Math.floor(mins / 60)).padStart(2, "0");
-  const m = String(Math.floor(mins % 60)).padStart(2, "0");
+  const m = String(mins % 60).padStart(2, "0");
   return `${h}:${m}:00`;
 }
 
 function updateTimeDisplay() {
-  timeLabel.innerText = getTimeStringFromMinutes(virtualMinutes);
-  timeSlider.value = Math.floor(virtualMinutes);
+  timeLabel.innerText = currentSimTime;
+  timeSlider.value = parseInt(currentSimTime.split(":")[0]) * 60 + parseInt(currentSimTime.split(":")[1]);
 }
 
+currentSimTime = getTimeStringFromMinutes(parseInt(timeSlider.value));
 updateTimeDisplay();
+
+timeSlider.addEventListener("input", () => {
+  currentSimTime = getTimeStringFromMinutes(parseInt(timeSlider.value));
+  updateTimeDisplay();
+  updateSimulatedTrains();
+});
 
 const lineColors = {
   "1호선": "blue",
@@ -77,41 +82,52 @@ fetch('/api/stations')
 document.getElementById("start-btn").addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   simInterval = setInterval(() => {
-    virtualMinutes += 0.2;
-    if (virtualMinutes >= 1440) {
+    let value = parseInt(timeSlider.value);
+    if (value < 1439) {
+      value += 1;
+      timeSlider.value = value;
+      currentSimTime = getTimeStringFromMinutes(value);
+      updateTimeDisplay();
+      updateSimulatedTrains();
+    } else {
       clearInterval(simInterval);
-      return;
     }
-    updateTimeDisplay();
-    updateSimulatedTrains();
-  }, 500); // 0.5초마다 0.2분 진행
+  }, 5000); // ✅ 5초마다 1분
 });
 
 document.getElementById("reset-btn").addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
-  Object.values(trainMarkers).forEach(m => map.removeLayer(m));
+  Object.values(trainMarkers).forEach(obj => map.removeLayer(obj.marker));
   trainMarkers = {};
 });
 
-function animateMove(marker, fromLatLng, toLatLng, duration = 500) {
+function animateMove(markerObj, fromLatLng, toLatLng, duration = 5000) {
+  if (markerObj.isMoving) return;
+  markerObj.isMoving = true;
+
   const start = performance.now();
   function step(timestamp) {
     const progress = Math.min((timestamp - start) / duration, 1);
     const lat = fromLatLng.lat + (toLatLng.lat - fromLatLng.lat) * progress;
     const lng = fromLatLng.lng + (toLatLng.lng - fromLatLng.lng) * progress;
-    marker.setLatLng([lat, lng]);
-    if (progress < 1) requestAnimationFrame(step);
+    markerObj.marker.setLatLng([lat, lng]);
+
+    if (progress < 1) {
+      requestAnimationFrame(step);
+    } else {
+      markerObj.isMoving = false;
+    }
   }
   requestAnimationFrame(step);
 }
 
 function updateSimulatedTrains() {
-  const timeStr = getTimeStringFromMinutes(virtualMinutes);
+  if (!currentSimTime) return;
 
-  fetch(`/api/simulation_data?time=${timeStr}`)
+  fetch(`/api/simulation_data?time=${currentSimTime}`)
     .then(res => res.json())
     .then(data => {
-      const activeKeys = new Set();
+      const activeIds = new Set();
 
       data.forEach(train => {
         const from = train.from;
@@ -146,29 +162,31 @@ function updateSimulatedTrains() {
           iconAnchor: [7, 7]
         });
 
-        const key = `${train.train_no}_${line}`;
-        activeKeys.add(key);
+        const key = train.train_no + "_" + line;
+        activeIds.add(key);
 
         if (trainMarkers[key]) {
-          const currentLatLng = trainMarkers[key].getLatLng();
-          if (!isNaN(lat) && !isNaN(lon)) {
-            animateMove(trainMarkers[key], currentLatLng, L.latLng(lat, lon));
+          const currentLatLng = trainMarkers[key].marker.getLatLng();
+          const toLatLng = L.latLng(lat, lon);
+          if (currentLatLng.distanceTo(toLatLng) > 1000) {
+            trainMarkers[key].marker.setLatLng(toLatLng); // 급이동 방지
+          } else {
+            animateMove(trainMarkers[key], currentLatLng, toLatLng);
           }
         } else {
-          const marker = L.marker([lat, lon], { icon }).bindPopup(`🚆 ${line}<br>${train.train_no}<br>→ ${train.to}`);
-          trainMarkers[key] = marker;
+          const marker = L.marker([lat, lon], { icon: icon })
+            .bindPopup(`🚆 ${line}<br>${train.train_no}<br>→ ${train.to}`);
           marker.addTo(map);
+          trainMarkers[key] = { marker: marker, isMoving: false };
         }
       });
 
-      // ❌ 지나간 열차 제거
       for (const key in trainMarkers) {
-        if (!activeKeys.has(key)) {
-          map.removeLayer(trainMarkers[key]);
+        if (!activeIds.has(key)) {
+          map.removeLayer(trainMarkers[key].marker);
           delete trainMarkers[key];
         }
       }
     })
     .catch(err => console.error("🚨 시뮬레이션 데이터 로딩 실패:", err));
 }
-
