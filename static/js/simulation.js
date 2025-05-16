@@ -96,7 +96,7 @@ document.getElementById("start-btn").addEventListener("click", () => {
     } else {
       clearInterval(simInterval);
     }
-  }, 5000); // 5초에 1분 진행
+  }, 500); // 0.5초에 1분 진행
 });
 
 // ⏹️ 초기화
@@ -107,7 +107,7 @@ document.getElementById("reset-btn").addEventListener("click", () => {
 });
 
 // 🚇 마커 애니메이션 이동
-function animateMove(marker, fromLatLng, toLatLng, duration = 5000) {
+function animateMove(marker, fromLatLng, toLatLng, duration = 500) {
   const start = performance.now();
   function step(timestamp) {
     const progress = Math.min((timestamp - start) / duration, 1);
