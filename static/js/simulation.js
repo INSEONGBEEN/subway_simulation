@@ -6,7 +6,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
 }).addTo(map);
 
-// 역 마커 저장용
+// 마커 저장용
 let stationMarkers = {};
 let trainMarkers = [];
 
@@ -32,7 +32,7 @@ timeSlider.addEventListener("input", () => {
   updateTrains();
 });
 
-// 노선별 색상 정의 (공통 사용)
+// 노선별 색상 정의
 const lineColors = {
   "1호선": "blue",
   "2호선": "green",
@@ -44,11 +44,11 @@ const lineColors = {
   "8호선": "pink"
 };
 
-// 1. 역 정보 시각화
+// 📌 1. 역 정보 불러오기 → 완료되면 선로 연결도 실행
 fetch('/api/stations')
   .then(res => res.json())
-  .then(data => {
-    data.forEach(station => {
+  .then(stations => {
+    stations.forEach(station => {
       const lineName = `${station.호선}호선`;
       const color = lineColors[lineName] || 'gray';
 
@@ -58,38 +58,38 @@ fetch('/api/stations')
         fillColor: color,
         fillOpacity: 0.7
       }).bindPopup(`${station.역명} (${lineName})`).addTo(map);
-      
+
+      // 📍 좌표 저장
       stationMarkers[station.역명] = [station.위도, station.경도];
     });
+
+    // ✅ 2. 선로 연결 (역 정보 로딩 완료 후에 실행해야 좌표가 있음)
+    fetch('/api/lines')
+      .then(res => res.json())
+      .then(lines => {
+        for (const [lineName, stationList] of Object.entries(lines)) {
+          const baseLine = lineName.match(/\d+호선/);
+          const color = baseLine ? lineColors[baseLine[0]] : 'gray';
+
+          const coords = stationList
+            .map(name => stationMarkers[name])
+            .filter(coord => coord !== undefined); // 좌표가 존재할 때만 추가
+
+          if (coords.length >= 2) {
+            L.polyline(coords, {
+              color: color,
+              weight: 3,
+              opacity: 0.8
+            }).addTo(map);
+          }
+        }
+      });
   });
 
-// 2. 노선 선 연결
-fetch('/api/lines')
-  .then(res => res.json())
-  .then(data => {
-    for (const [lineName, stations] of Object.entries(data)) {
-      const baseLine = lineName.match(/\d+호선/);  // "1호선", "2호선" 등 추출
-      const color = baseLine ? lineColors[baseLine[0]] : 'gray';
-
-      const coords = stations
-        .map(name => stationMarkers[name])
-        .filter(coord => coord !== undefined);
-        
-      if (coords.length >= 2) {
-        L.polyline(coords, {
-          color: color,
-          weight: 3,
-          opacity: 0.8
-        }).addTo(map);
-      }
-    }
-  });
-
-// 3. 열차 시각화 함수
+// 📌 3. 열차 시각화
 let timetableData = [];
 
 function updateTrains() {
-  // 기존 마커 제거
   trainMarkers.forEach(m => map.removeLayer(m));
   trainMarkers = [];
 
@@ -112,7 +112,7 @@ function updateTrains() {
   });
 }
 
-// 4. 시간표 데이터 불러오기 및 초기 표시
+// 📌 4. 시간표 불러오기
 fetch('/api/timetable')
   .then(res => res.json())
   .then(data => {
