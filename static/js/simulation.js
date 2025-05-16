@@ -29,7 +29,7 @@ timeLabel.innerText = currentSimTime;
 timeSlider.addEventListener("input", () => {
   currentSimTime = getTimeStringFromMinutes(parseInt(timeSlider.value));
   timeLabel.innerText = currentSimTime;
-  updateTrains();
+  updateSimulatedTrains();  // 슬라이더 변경 시 열차 위치 갱신
 });
 
 // 노선별 색상 정의
@@ -63,7 +63,7 @@ fetch('/api/stations')
       stationMarkers[station.역명] = [station.위도, station.경도];
     });
 
-    // ✅ 2. 선로 연결 (역 정보 로딩 완료 후에 실행해야 좌표가 있음)
+    // ✅ 2. 선로 연결 (역 정보 로딩 완료 후 실행)
     fetch('/api/lines')
       .then(res => res.json())
       .then(lines => {
@@ -73,7 +73,7 @@ fetch('/api/stations')
 
           const coords = stationList
             .map(name => stationMarkers[name])
-            .filter(coord => coord !== undefined); // 좌표가 존재할 때만 추가
+            .filter(coord => coord !== undefined);
 
           if (coords.length >= 2) {
             L.polyline(coords, {
@@ -86,36 +86,28 @@ fetch('/api/stations')
       });
   });
 
-// 📌 3. 열차 시각화
-let timetableData = [];
+// 📌 3. 시뮬레이션 시작 버튼 연결
+document.getElementById("start-btn").addEventListener("click", () => {
+  updateSimulatedTrains();
+});
 
-function updateTrains() {
-  trainMarkers.forEach(m => map.removeLayer(m));
-  trainMarkers = [];
+// 📌 4. 열차 위치 시각화 (선택한 시각 기준)
+function updateSimulatedTrains() {
+  fetch(`/api/simulation_data?time=${currentSimTime}`)
+    .then(res => res.json())
+    .then(data => {
+      trainMarkers.forEach(m => map.removeLayer(m));
+      trainMarkers = [];
 
-  const activeTrains = timetableData.filter(row => {
-    return row.ARRIVETIME <= currentSimTime && row.LEFTTIME >= currentSimTime;
-  });
-
-  activeTrains.forEach(train => {
-    const coord = stationMarkers[train.STATION_NM];
-    if (coord) {
-      const marker = L.circleMarker(coord, {
-        radius: 6,
-        color: 'red',
-        fillColor: 'red',
-        fillOpacity: 0.9
-      }).bindPopup(`🚆 ${train.LINE_NUM}<br>${train.TRAIN_NO}<br>→ ${train.SUBWAYENAME}`);
-      trainMarkers.push(marker);
-      marker.addTo(map);
-    }
-  });
+      data.forEach(train => {
+        const marker = L.circleMarker([train.lat, train.lon], {
+          radius: 6,
+          color: 'red',
+          fillColor: 'red',
+          fillOpacity: 0.9
+        }).bindPopup(`🚆 ${train.line}<br>${train.train_no}<br>→ ${train.to}`);
+        trainMarkers.push(marker);
+        marker.addTo(map);
+      });
+    });
 }
-
-// 📌 4. 시간표 불러오기
-fetch('/api/timetable')
-  .then(res => res.json())
-  .then(data => {
-    timetableData = data;
-    updateTrains();
-  });
