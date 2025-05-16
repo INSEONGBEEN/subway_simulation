@@ -44,45 +44,49 @@ def lines():
 # ✅ 열차 실시간 위치 추정 (시뮬레이션용)
 @app.route("/api/simulation_data")
 def simulation_data():
-    req_time = request.args.get("time", None)
+    req_time = request.args.get("time")
     if not req_time:
         return jsonify([])
 
-    now = req_time  # 슬라이더에서 받은 시각 문자열 (e.g. "08:02:00")
+    try:
+        t_now = datetime.strptime(req_time, "%H:%M:%S")
+    except:
+        return jsonify([])
+
+    # ✅ 🔥 메모리 줄이기: 사전 필터링
+    df_active = df_timetable[
+        (df_timetable['LEFTTIME'] < req_time) & 
+        (df_timetable['NEXT_ARRIVETIME'] > req_time)
+    ]
 
     active_trains = []
 
-    for _, row in df_timetable.iterrows():
-        if pd.isna(row['NEXT_ARRIVETIME']):
+    for _, row in df_active.iterrows():
+        try:
+            t1 = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
+            t2 = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S")
+            progress = (t_now - t1).total_seconds() / (t2 - t1).total_seconds()
+            progress = max(0, min(1, progress))  # 🔧 안전하게 제한
+
+            lat1, lon1 = station_dict.get(row['STATION_NM'], (None, None))
+            lat2, lon2 = station_dict.get(row['NEXT_STATION'], (None, None))
+
+            if lat1 is not None and lat2 is not None:
+                lat = lat1 + (lat2 - lat1) * progress
+                lon = lon1 + (lon2 - lon1) * progress
+
+                active_trains.append({
+                    'train_no': row['TRAIN_NO'],
+                    'line': row['LINE_NUM'],
+                    'from': row['STATION_NM'],
+                    'to': row['NEXT_STATION'],
+                    'lat': lat,
+                    'lon': lon
+                })
+
+        except Exception as e:
+            print("Error during simulation row:", e)
             continue
-
-        left_time = row['LEFTTIME']
-        next_arrive_time = row['NEXT_ARRIVETIME']
-
-        if left_time < now < next_arrive_time:
-            try:
-                t1 = datetime.strptime(left_time, "%H:%M:%S")
-                t2 = datetime.strptime(next_arrive_time, "%H:%M:%S")
-                t_now = datetime.strptime(now, "%H:%M:%S")
-                progress = (t_now - t1).total_seconds() / (t2 - t1).total_seconds()
-
-                lat1, lon1 = station_dict.get(row['STATION_NM'], (None, None))
-                lat2, lon2 = station_dict.get(row['NEXT_STATION'], (None, None))
-
-                if lat1 is not None and lat2 is not None:
-                    lat = lat1 + (lat2 - lat1) * progress
-                    lon = lon1 + (lon2 - lon1) * progress
-
-                    active_trains.append({
-                        'train_no': row['TRAIN_NO'],
-                        'line': row['LINE_NUM'],
-                        'from': row['STATION_NM'],
-                        'to': row['NEXT_STATION'],
-                        'lat': lat,
-                        'lon': lon
-                    })
-            except:
-                continue
 
     return jsonify(active_trains)
 
