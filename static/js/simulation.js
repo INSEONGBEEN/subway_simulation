@@ -103,7 +103,7 @@ document.getElementById("start-btn").addEventListener("click", () => {
     } else {
       clearInterval(simInterval);
     }
-  }, 500);  // 0.5초 간격으로 시각 증가
+  }, 1000);  // 1초 간격으로 시각 증가
 });
 
 // 🔄 초기화 버튼 → 시뮬레이션 중지 + 마커 삭제
