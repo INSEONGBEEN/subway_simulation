@@ -68,12 +68,16 @@ fetch('/api/lines')
   .then(res => res.json())
   .then(data => {
     for (const [lineName, stations] of Object.entries(data)) {
+      const baseLine = lineName.match(/\d+호선/);  // "1호선", "2호선" 등 추출
+      const color = baseLine ? lineColors[baseLine[0]] : 'gray';
+
       const coords = stations
         .map(name => stationMarkers[name])
         .filter(coord => coord !== undefined);
+        
       if (coords.length >= 2) {
         L.polyline(coords, {
-          color: lineColors[lineName] || 'gray',
+          color: color,
           weight: 3,
           opacity: 0.8
         }).addTo(map);
