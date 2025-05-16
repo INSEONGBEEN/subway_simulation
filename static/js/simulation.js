@@ -94,7 +94,7 @@ document.getElementById("start-btn").addEventListener("click", () => {
     } else {
       clearInterval(simInterval);
     }
-  }, 5000); # 5초 갱신
+  }, 5000);
 });
 
 // ⏹️ 초기화
