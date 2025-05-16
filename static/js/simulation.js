@@ -45,7 +45,7 @@ const lineColors = {
   "8호선": "pink"
 };
 
-// 📌 1. 역 정보 불러오기 → 완료되면 선로 연결도 실행
+// 📌 역 정보 불러오기 → 완료되면 선로 연결도 실행
 fetch('/api/stations')
   .then(res => res.json())
   .then(stations => {
@@ -64,7 +64,7 @@ fetch('/api/stations')
       stationMarkers[station.역명] = [station.위도, station.경도];
     });
 
-    // ✅ 2. 선로 연결
+    // ✅ 선로 연결
     fetch('/api/lines')
       .then(res => res.json())
       .then(lines => {
@@ -87,7 +87,8 @@ fetch('/api/stations')
       });
   });
 
-// 📌 3. 시뮬레이션 시작 버튼
+// 📌 시뮬레이션 시작 버튼
+
 document.getElementById("start-btn").addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
 
@@ -105,14 +106,15 @@ document.getElementById("start-btn").addEventListener("click", () => {
   }, 500);  // 0.5초 간격으로 시각 증가
 });
 
-// 📌 초기화 버튼 → 시뮬레이션 중지 + 마커 삭제
+// 🔄 초기화 버튼 → 시뮬레이션 중지 + 마커 삭제
+
 document.getElementById("reset-btn").addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   trainMarkers.forEach(m => map.removeLayer(m));
   trainMarkers = [];
 });
 
-// 📌 4. 열차 위치 시각화
+// 📌 열차 위치 시각화
 function updateSimulatedTrains() {
   if (!currentSimTime) return;
 
@@ -136,9 +138,8 @@ function updateSimulatedTrains() {
         const lat = coord1[0] + (coord2[0] - coord1[0]) * p;
         const lon = coord1[1] + (coord2[1] - coord1[1]) * p;
 
-        // ✅ 호선 문자열 통일
-        const lineStr = String(line).replace(/^0/, '');  // "03" → "3"
-        const lineKey = lineStr.endsWith("호선") ? lineStr : `${lineStr}호선`;
+        const lineStr = String(line).replace(/^0/, '');
+        const lineKey = lineStr.endsWith("\ud638\uc120") ? lineStr : `${lineStr}호선`;
         const color = lineColors[lineKey] || "gray";
 
         const icon = L.divIcon({
