@@ -158,7 +158,7 @@ function updateSimulatedTrains() {
             background-color: ${color};
           ">🚇</div>`,
           iconSize: [14, 14],
-          iconAnchor: [14, 14]
+          iconAnchor: [7, 7]
         });
 
         const marker = L.marker([lat, lon], { icon: icon })
