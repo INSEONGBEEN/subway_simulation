@@ -8,8 +8,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 // 마커 저장용
 let stationMarkers = {};
-let trainMarkers = {}; // 🔄 이제는 객체로 (train_no 기준)
-let simInterval = null;  // 시뮬레이션 재생 타이머
+let trainMarkers = {}; // 🔄 train_no + line 기준으로 관리
+let simInterval = null;
 
 // 현재 시각 상태 (슬라이더와 연결)
 let currentSimTime = null;
@@ -23,7 +23,6 @@ function getTimeStringFromMinutes(mins) {
   const m = String(mins % 60).padStart(2, "0");
   return `${h}:${m}:00`;
 }
-
 currentSimTime = getTimeStringFromMinutes(parseInt(timeSlider.value));
 timeLabel.innerText = currentSimTime;
 
@@ -33,6 +32,7 @@ timeSlider.addEventListener("input", () => {
   updateSimulatedTrains();
 });
 
+// 🚇 노선 색상
 const lineColors = {
   "1호선": "blue",
   "2호선": "green",
@@ -44,13 +44,14 @@ const lineColors = {
   "8호선": "pink"
 };
 
-// 📌 1. 역 불러오기 및 선로 그리기
+// 📌 1. 역 정보 로드 및 선로 연결
 fetch('/api/stations')
   .then(res => res.json())
   .then(stations => {
     stations.forEach(station => {
       const lineName = `${station.호선}호선`;
       const color = lineColors[lineName] || 'gray';
+
       const marker = L.circleMarker([station.위도, station.경도], {
         radius: 3,
         color: color,
@@ -61,6 +62,7 @@ fetch('/api/stations')
       stationMarkers[station.역명] = [station.위도, station.경도];
     });
 
+    // 선로 연결
     fetch('/api/lines')
       .then(res => res.json())
       .then(lines => {
@@ -94,7 +96,7 @@ document.getElementById("start-btn").addEventListener("click", () => {
     } else {
       clearInterval(simInterval);
     }
-  }, 5000);
+  }, 5000); // 5초에 1분 진행
 });
 
 // ⏹️ 초기화
@@ -104,7 +106,7 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   trainMarkers = {};
 });
 
-// 🚇 애니메이션 이동
+// 🚇 마커 애니메이션 이동
 function animateMove(marker, fromLatLng, toLatLng, duration = 5000) {
   const start = performance.now();
   function step(timestamp) {
@@ -117,7 +119,7 @@ function animateMove(marker, fromLatLng, toLatLng, duration = 5000) {
   requestAnimationFrame(step);
 }
 
-// 📌 4. 열차 위치 시각화
+// 📌 열차 위치 시각화
 function updateSimulatedTrains() {
   if (!currentSimTime) return;
 
@@ -129,8 +131,7 @@ function updateSimulatedTrains() {
       data.forEach(train => {
         const from = train.from;
         const to = train.to;
-        const p = train.progress;
-        const line = String(train.line).replace(/^0/, '').replace(/호선$/, '') + "호선";
+        const p = Math.max(0, Math.min(1, train.progress)); // 🛡 progress 안전 제한
 
         const coord1 = stationMarkers[from];
         const coord2 = stationMarkers[to];
@@ -138,7 +139,15 @@ function updateSimulatedTrains() {
 
         const lat = coord1[0] + (coord2[0] - coord1[0]) * p;
         const lon = coord1[1] + (coord2[1] - coord1[1]) * p;
+
+        // 호선 처리
+        const lineRaw = String(train.line).replace(/^0/, '').replace(/호선$/, '');
+        const line = `${lineRaw}호선`;
         const color = lineColors[line] || "gray";
+
+        // 고유 키
+        const key = `${train.train_no}_${line}`;
+        activeIds.add(key);
 
         const icon = L.divIcon({
           className: 'emoji-icon',
@@ -159,20 +168,17 @@ function updateSimulatedTrains() {
           iconAnchor: [7, 7]
         });
 
-        const key = train.train_no;
-        activeIds.add(key);
-
         if (trainMarkers[key]) {
           const currentLatLng = trainMarkers[key].getLatLng();
           animateMove(trainMarkers[key], currentLatLng, L.latLng(lat, lon));
         } else {
           const marker = L.marker([lat, lon], { icon: icon }).bindPopup(`🚆 ${line}<br>${train.train_no}<br>→ ${train.to}`);
-          trainMarkers[key] = marker;
           marker.addTo(map);
+          trainMarkers[key] = marker;
         }
       });
 
-      // ❌ 지나간 열차 제거
+      // 지나간 열차 제거
       for (const key in trainMarkers) {
         if (!activeIds.has(key)) {
           map.removeLayer(trainMarkers[key]);
