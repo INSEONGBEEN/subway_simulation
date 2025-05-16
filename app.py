@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify
 import pandas as pd
 import os
 import json
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -15,6 +16,9 @@ df_station = pd.read_csv(station_path, encoding="cp949")
 df_timetable = pd.read_csv(timetable_path, encoding="utf-8-sig")
 with open(line_path, encoding="utf-8") as f:
     line_orders = json.load(f)
+
+# 역 좌표 딕셔너리 (시뮬레이션용)
+station_dict = {row['역명']: (row['위도'], row['경도']) for _, row in df_station.iterrows()}
 
 # ✅ 메인 페이지
 @app.route("/")
@@ -36,6 +40,47 @@ def stations():
 @app.route("/api/lines")
 def lines():
     return jsonify(line_orders)
+
+# ✅ 열차 실시간 위치 추정 (시뮬레이션용)
+@app.route("/api/simulation_data")
+def simulation_data():
+    now = datetime.now().strftime("%H:%M:%S")
+    active_trains = []
+
+    for _, row in df_timetable.iterrows():
+        if pd.isna(row['NEXT_ARRIVETIME']):
+            continue
+
+        left_time = row['LEFTTIME']
+        next_arrive_time = row['NEXT_ARRIVETIME']
+
+        if left_time < now < next_arrive_time:
+            try:
+                # 시간 보간 계산
+                t1 = datetime.strptime(left_time, "%H:%M:%S")
+                t2 = datetime.strptime(next_arrive_time, "%H:%M:%S")
+                t_now = datetime.strptime(now, "%H:%M:%S")
+                progress = (t_now - t1).total_seconds() / (t2 - t1).total_seconds()
+
+                lat1, lon1 = station_dict.get(row['STATION_NM'], (None, None))
+                lat2, lon2 = station_dict.get(row['NEXT_STATION'], (None, None))
+
+                if lat1 is not None and lat2 is not None:
+                    lat = lat1 + (lat2 - lat1) * progress
+                    lon = lon1 + (lon2 - lon1) * progress
+
+                    active_trains.append({
+                        'train_no': row['TRAIN_NO'],
+                        'line': row['LINE_NUM'],
+                        'from': row['STATION_NM'],
+                        'to': row['NEXT_STATION'],
+                        'lat': lat,
+                        'lon': lon
+                    })
+            except:
+                continue
+
+    return jsonify(active_trains)
 
 if __name__ == "__main__":
     app.run(debug=True)
