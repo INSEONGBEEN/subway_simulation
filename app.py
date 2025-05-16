@@ -12,7 +12,7 @@ line_path = os.path.join("data", "line_orders.json")
 timetable_path = os.path.join("data", "preprocessed_timetable.csv")
 
 # 📄 데이터 불러오기
-df_station = pd.read_csv(station_path, encoding="cp949")
+df_station = pd.read_csv(station_path, encoding='utf-8')
 df_timetable = pd.read_csv(timetable_path, encoding="utf-8-sig")
 with open(line_path, encoding="utf-8") as f:
     line_orders = json.load(f)
