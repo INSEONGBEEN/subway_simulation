@@ -32,17 +32,33 @@ timeSlider.addEventListener("input", () => {
   updateTrains();
 });
 
+// 노선별 색상 정의 (공통 사용)
+const lineColors = {
+  "1호선": "blue",
+  "2호선": "green",
+  "3호선": "orange",
+  "4호선": "skyblue",
+  "5호선": "purple",
+  "6호선": "brown",
+  "7호선": "olive",
+  "8호선": "pink"
+};
+
 // 1. 역 정보 시각화
 fetch('/api/stations')
   .then(res => res.json())
   .then(data => {
     data.forEach(station => {
+      const lineName = `${station.호선}호선`;
+      const color = lineColors[lineName] || 'gray';
+
       const marker = L.circleMarker([station.위도, station.경도], {
         radius: 3,
-        color: 'black',
-        fillColor: 'black',
+        color: color,
+        fillColor: color,
         fillOpacity: 0.7
-      }).bindPopup(`${station.역명} (${station.호선}호선)`).addTo(map);
+      }).bindPopup(`${station.역명} (${lineName})`).addTo(map);
+      
       stationMarkers[station.역명] = [station.위도, station.경도];
     });
   });
@@ -51,24 +67,13 @@ fetch('/api/stations')
 fetch('/api/lines')
   .then(res => res.json())
   .then(data => {
-    const colors = {
-      "1호선": "blue",
-      "2호선": "green",
-      "3호선": "orange",
-      "4호선": "skyblue",
-      "5호선": "purple",
-      "6호선": "brown",
-      "7호선": "olive",
-      "8호선": "pink"
-    };
-
     for (const [lineName, stations] of Object.entries(data)) {
       const coords = stations
         .map(name => stationMarkers[name])
         .filter(coord => coord !== undefined);
       if (coords.length >= 2) {
         L.polyline(coords, {
-          color: colors[lineName.slice(0, 3)] || 'gray',
+          color: lineColors[lineName] || 'gray',
           weight: 3,
           opacity: 0.8
         }).addTo(map);
