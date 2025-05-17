@@ -1,17 +1,31 @@
-// 지도 초기화
+// ✅ 0. 노선 색상 정의는 가장 먼저 위치
+const lineColors = {
+  "1호선": "blue",
+  "2호선": "green",
+  "3호선": "orange",
+  "4호선": "skyblue",
+  "5호선": "purple",
+  "6호선": "brown",
+  "7호선": "olive",
+  "8호선": "pink"
+};
+
+// ✅ 1. 지도 초기화
 const map = L.map('map').setView([37.5665, 126.9780], 11);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
 }).addTo(map);
 
 let stationMarkers = {};
-let trainMarkers = {};  // 🔙 다시 train_no 기준
+let trainMarkers = {};
 let simInterval = null;
 let currentSimTimeSec = 0;
 let speedMultiplier = 1;
 
 const timeLabel = document.getElementById("timeLabel");
 const speedSelect = document.getElementById("speed-select");
+const startBtn = document.getElementById("start-btn");
+const resetBtn = document.getElementById("reset-btn");
 
 function secondsToTimeString(seconds) {
   const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
@@ -32,7 +46,7 @@ function animateMove(marker, fromLatLng, toLatLng, duration = 1000) {
   requestAnimationFrame(step);
 }
 
-// 📌 역 정보 & 선로
+// ✅ 2. 역 + 선로 표시
 fetch('/api/stations')
   .then(res => res.json())
   .then(stations => {
@@ -67,7 +81,7 @@ fetch('/api/stations')
   });
 
 // ▶️ 시작 버튼
-start-btn.addEventListener("click", () => {
+startBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   simInterval = setInterval(() => {
     currentSimTimeSec += speedMultiplier;
@@ -76,8 +90,8 @@ start-btn.addEventListener("click", () => {
   }, 1000);
 });
 
-// ⏹️ 초기화 버튼
-reset-btn.addEventListener("click", () => {
+// ⏹️ 초기화
+resetBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   Object.values(trainMarkers).forEach(m => map.removeLayer(m));
   trainMarkers = {};
@@ -89,17 +103,6 @@ speedSelect.addEventListener("change", () => {
   speedMultiplier = parseInt(speedSelect.value);
 });
 
-const lineColors = {
-  "1호선": "blue",
-  "2호선": "green",
-  "3호선": "orange",
-  "4호선": "skyblue",
-  "5호선": "purple",
-  "6호선": "brown",
-  "7호선": "olive",
-  "8호선": "pink"
-};
-
 function updateTrains(timeStr) {
   fetch(`/api/simulation_data?time=${timeStr}`)
     .then(res => res.json())
@@ -109,6 +112,7 @@ function updateTrains(timeStr) {
         const from = stationMarkers[train.from];
         const to = stationMarkers[train.to];
         if (!from || !to) return;
+
         const p = train.progress;
         const lat = from[0] + (to[0] - from[0]) * p;
         const lon = from[1] + (to[1] - from[1]) * p;
@@ -147,7 +151,6 @@ function updateTrains(timeStr) {
         }
       });
 
-      // ❌ 지나간 열차 제거
       for (const key in trainMarkers) {
         if (!activeIds.has(key)) {
           map.removeLayer(trainMarkers[key]);
