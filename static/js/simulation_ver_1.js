@@ -19,13 +19,18 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let stationMarkers = {};
 let trainMarkers = {};
 let simInterval = null;
-let currentSimTimeSec = 12 * 3600;
+let currentSimTimeSec = 6 * 3600;
 let speedMultiplier = 1;
 
 const timeLabel = document.getElementById("timeLabel");
 const speedSelect = document.getElementById("speed-select");
 const startBtn = document.getElementById("start-btn");
 const resetBtn = document.getElementById("reset-btn");
+
+// 🆕 필터 UI
+const weekdaySelect = document.getElementById("weekday-select");
+const directionSelect = document.getElementById("direction-select");
+const lineSelect = document.getElementById("line-select");
 
 function secondsToTimeString(seconds) {
   const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
@@ -90,13 +95,13 @@ startBtn.addEventListener("click", () => {
   }, 1000);
 });
 
-// ⏹️ 초기화
+// ⏹️ 초기화 버튼
 resetBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   Object.values(trainMarkers).forEach(m => map.removeLayer(m));
   trainMarkers = {};
-  currentSimTimeSec = 12 * 3600;
-  timeLabel.innerText = "12:00:00";
+  currentSimTimeSec = 6 * 3600;
+  timeLabel.innerText = "06:00:00";
 });
 
 speedSelect.addEventListener("change", () => {
@@ -104,11 +109,21 @@ speedSelect.addEventListener("change", () => {
 });
 
 function updateTrains(timeStr) {
-  fetch(`/api/simulation_data?time=${timeStr}`)
+  const week = weekdaySelect.value;
+  const direction = directionSelect.value;
+  const lineFilter = lineSelect.value;
+
+  const params = new URLSearchParams({
+    time: timeStr,
+    week,
+    direction,
+    line: lineFilter
+  });
+
+  fetch(`/api/simulation_data?${params.toString()}`)
     .then(res => res.json())
     .then(data => {
       const activeIds = new Set();
-
       data.forEach(train => {
         const from = stationMarkers[train.from];
         const to = stationMarkers[train.to];
@@ -139,15 +154,6 @@ function updateTrains(timeStr) {
           iconAnchor: [7, 7]
         });
 
-        // ✅ 종착역 도착 확인용
-        if (train.to === train.dest && train.progress >= 1) {
-          if (trainMarkers[key]) {
-            map.removeLayer(trainMarkers[key]);
-            delete trainMarkers[key];
-          }
-          return;
-        }
-
         activeIds.add(key);
 
         if (trainMarkers[key]) {
@@ -161,7 +167,6 @@ function updateTrains(timeStr) {
         }
       });
 
-      // ✅ 지나간 열차 제거 (단, 종착역 도달한 경우는 위에서 삭제됨)
       for (const key in trainMarkers) {
         if (!activeIds.has(key)) {
           map.removeLayer(trainMarkers[key]);
@@ -171,4 +176,3 @@ function updateTrains(timeStr) {
     })
     .catch(err => console.error("🚨 로딩 실패:", err));
 }
-
