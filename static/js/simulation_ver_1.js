@@ -1,4 +1,4 @@
-// ✅ 0. 노선 색상 정의
+// ✅ 0. 노선 색상 정의는 가장 먼저 위치
 const lineColors = {
   "1호선": "blue",
   "2호선": "green",
@@ -26,8 +26,8 @@ const timeLabel = document.getElementById("timeLabel");
 const speedSelect = document.getElementById("speed-select");
 const startBtn = document.getElementById("start-btn");
 const resetBtn = document.getElementById("reset-btn");
-const weekSelect = document.getElementById("week-select");
 const directionSelect = document.getElementById("direction-select");
+const weekdaySelect = document.getElementById("weekday-select");
 const lineSelect = document.getElementById("line-select");
 
 function secondsToTimeString(seconds) {
@@ -83,16 +83,17 @@ fetch('/api/stations')
       });
   });
 
+// ▶️ 시작 버튼
 startBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   simInterval = setInterval(() => {
     currentSimTimeSec += speedMultiplier;
-    const timeStr = secondsToTimeString(currentSimTimeSec);
-    timeLabel.innerText = timeStr;
-    updateTrains(timeStr);
+    timeLabel.innerText = secondsToTimeString(currentSimTimeSec);
+    updateTrains(secondsToTimeString(currentSimTimeSec));
   }, 1000);
 });
 
+// ⏹️ 초기화
 resetBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   Object.values(trainMarkers).forEach(m => map.removeLayer(m));
@@ -106,12 +107,11 @@ speedSelect.addEventListener("change", () => {
 });
 
 function updateTrains(timeStr) {
-  const week_tag = weekSelect.value;
-  const inout_tag = directionSelect.value;
-  const line_filter = lineSelect.value;
-  const url = `/api/simulation_data?time=${timeStr}&week_tag=${week_tag}&inout_tag=${inout_tag}&line_filter=${line_filter}`;
+  const direction = directionSelect.value;
+  const weekday = weekdaySelect.value;
+  const line = lineSelect.value;
 
-  fetch(url)
+  fetch(`/api/simulation_data?time=${timeStr}&direction=${direction}&weekday=${weekday}&line=${line}`)
     .then(res => res.json())
     .then(data => {
       const activeIds = new Set();
@@ -129,7 +129,18 @@ function updateTrains(timeStr) {
 
         const icon = L.divIcon({
           className: 'emoji-icon',
-          html: `<div style="font-size: 12px; color: white; border: 1px solid ${color}; border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; background-color: ${color};">🚇</div>`,
+          html: `<div style="
+            font-size: 12px;
+            color: white;
+            border: 1px solid ${color};
+            border-radius: 50%;
+            width: 14px;
+            height: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: ${color};
+          ">🚇</div>`,
           iconSize: [14, 14],
           iconAnchor: [7, 7]
         });
