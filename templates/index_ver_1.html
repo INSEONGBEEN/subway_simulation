@@ -12,14 +12,26 @@
 <body>
   <div id="controls">
     <h1>서울 지하철 시뮬레이션 (Ver.1)</h1>
-    <div style="margin-top: 10px;">
-      <input type="range" id="timeSlider" min="0" max="1439" value="480" />
-      <span id="timeLabel">08:00:00</span>
-    </div>
+
+    <!-- 🕒 현재 시간 표시 -->
+    <p>현재 시각: <span id="timeLabel">08:00:00</span></p>
+
+    <!-- ⏩ 배속 선택 -->
+    <label for="speed-select">배속 선택:</label>
+    <select id="speed-select">
+      <option value="0.5">0.5배속 (느리게)</option>
+      <option value="1" selected>1배속 (기본)</option>
+      <option value="2">2배속</option>
+      <option value="5">5배속</option>
+    </select>
+
+    <!-- ▶️ / ⏹️ -->
     <button id="start-btn">▶️ 시뮬레이션 시작</button>
     <button id="reset-btn">⏹️ 초기화</button>
   </div>
+
   <div id="map" style="height: 90vh;"></div>
+
   <script src="{{ url_for('static', filename='js/simulation_ver_1.js') }}"></script>
 </body>
 </html>
