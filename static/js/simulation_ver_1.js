@@ -1,23 +1,31 @@
 // 지도 초기화
 const map = L.map('map').setView([37.5665, 126.9780], 11); // 서울 중심
 
+// 타일 레이어
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
 }).addTo(map);
 
+// 마커 저장용
 let stationMarkers = {};
-let trainMarkers = {};
+let trainMarkers = {}; // train_no 기준
 let simInterval = null;
-let currentSimMinute = 300; // 05:00
-let timeSpeed = 1; // 기본 배속
 
-const timeLabel = document.getElementById("timeLabel");
-function updateTimeLabel() {
-  const h = String(Math.floor(currentSimMinute / 60)).padStart(2, "0");
-  const m = String(Math.floor(currentSimMinute % 60)).padStart(2, "0");
-  timeLabel.innerText = `${h}:${m}:00`;
-}
-updateTimeLabel();
+// 시간 상태
+let currentSimTime = new Date(); // 가상 시간
+let speedMultiplier = 1; // 배속 (1x, 2x, ...)
+
+// UI 요소
+const simTimeLabel = document.getElementById("sim-time");
+const speedSelect = document.getElementById("speed-select");
+
+// 초기 시각 설정 (05:00:00)
+currentSimTime.setHours(5, 0, 0, 0);
+simTimeLabel.innerText = currentSimTime.toTimeString().substring(0, 8);
+
+speedSelect.addEventListener("change", () => {
+  speedMultiplier = parseFloat(speedSelect.value);
+});
 
 const lineColors = {
   "1호선": "blue",
@@ -30,6 +38,7 @@ const lineColors = {
   "8호선": "pink"
 };
 
+// 📌 1. 역 & 선로 불러오기
 fetch('/api/stations')
   .then(res => res.json())
   .then(stations => {
@@ -63,28 +72,31 @@ fetch('/api/stations')
       });
   });
 
+// ▶️ 시뮬레이션 시작
+function formatTime(date) {
+  return date.toTimeString().substring(0, 8);
+}
+
 document.getElementById("start-btn").addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   simInterval = setInterval(() => {
-    currentSimMinute += timeSpeed;
-    updateTimeLabel();
+    currentSimTime = new Date(currentSimTime.getTime() + 1000 * speedMultiplier);
+    simTimeLabel.innerText = formatTime(currentSimTime);
     updateSimulatedTrains();
-  }, 5000); // 5초마다 업데이트
+  }, 1000); // 실제 1초마다 업데이트
 });
 
+// ⏹️ 초기화
 document.getElementById("reset-btn").addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   Object.values(trainMarkers).forEach(m => map.removeLayer(m));
   trainMarkers = {};
-  currentSimMinute = 300;
-  updateTimeLabel();
+  currentSimTime.setHours(5, 0, 0, 0);
+  simTimeLabel.innerText = formatTime(currentSimTime);
 });
 
-document.getElementById("speed-select").addEventListener("change", e => {
-  timeSpeed = parseFloat(e.target.value);
-});
-
-function animateMove(marker, fromLatLng, toLatLng, duration = 5000) {
+// 🚇 애니메이션 이동
+function animateMove(marker, fromLatLng, toLatLng, duration = 1000) {
   const start = performance.now();
   function step(timestamp) {
     const progress = Math.min((timestamp - start) / duration, 1);
@@ -96,12 +108,11 @@ function animateMove(marker, fromLatLng, toLatLng, duration = 5000) {
   requestAnimationFrame(step);
 }
 
+// 📌 열차 위치 시각화
 function updateSimulatedTrains() {
-  const h = String(Math.floor(currentSimMinute / 60)).padStart(2, "0");
-  const m = String(Math.floor(currentSimMinute % 60)).padStart(2, "0");
-  const simTime = `${h}:${m}:00`;
+  const simTimeStr = formatTime(currentSimTime);
 
-  fetch(`/api/simulation_data?time=${simTime}`)
+  fetch(`/api/simulation_data?time=${simTimeStr}`)
     .then(res => res.json())
     .then(data => {
       const activeIds = new Set();
@@ -120,6 +131,7 @@ function updateSimulatedTrains() {
         const color = lineColors[line] || "gray";
 
         const icon = L.divIcon({
+          className: 'emoji-icon',
           html: `<div style="
             font-size: 12px;
             font-weight: bold;
@@ -137,14 +149,15 @@ function updateSimulatedTrains() {
           iconAnchor: [7, 7]
         });
 
-        const key = train.train_no;
+        const key = train.train_no + "_" + line;
         activeIds.add(key);
 
         if (trainMarkers[key]) {
           const currentLatLng = trainMarkers[key].getLatLng();
           animateMove(trainMarkers[key], currentLatLng, L.latLng(lat, lon));
         } else {
-          const marker = L.marker([lat, lon], { icon: icon }).bindPopup(`🚆 ${line}<br>${train.train_no}<br>→ ${train.to}`);
+          const marker = L.marker([lat, lon], { icon: icon })
+            .bindPopup(`🚆 ${line}<br>${train.train_no}<br>→ ${train.to}`);
           trainMarkers[key] = marker;
           marker.addTo(map);
         }
