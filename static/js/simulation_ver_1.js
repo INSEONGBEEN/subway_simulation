@@ -1,4 +1,4 @@
-// ✅ 0. 노선 색상 정의는 가장 먼저 위치
+// ✅ 0. 노선 색상 정의
 const lineColors = {
   "1호선": "blue",
   "2호선": "green",
@@ -19,16 +19,14 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let stationMarkers = {};
 let trainMarkers = {};
 let simInterval = null;
-let currentSimTimeSec = 9 * 3600;
+let currentSimTimeSec = 6 * 3600;
 let speedMultiplier = 1;
 
 const timeLabel = document.getElementById("timeLabel");
 const speedSelect = document.getElementById("speed-select");
 const startBtn = document.getElementById("start-btn");
 const resetBtn = document.getElementById("reset-btn");
-
-// 🆕 필터 UI
-const weekdaySelect = document.getElementById("weekday-select");
+const weekSelect = document.getElementById("week-select");
 const directionSelect = document.getElementById("direction-select");
 const lineSelect = document.getElementById("line-select");
 
@@ -85,23 +83,22 @@ fetch('/api/stations')
       });
   });
 
-// ▶️ 시작 버튼
 startBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   simInterval = setInterval(() => {
     currentSimTimeSec += speedMultiplier;
-    timeLabel.innerText = secondsToTimeString(currentSimTimeSec);
-    updateTrains(secondsToTimeString(currentSimTimeSec));
+    const timeStr = secondsToTimeString(currentSimTimeSec);
+    timeLabel.innerText = timeStr;
+    updateTrains(timeStr);
   }, 1000);
 });
 
-// ⏹️ 초기화 버튼
 resetBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   Object.values(trainMarkers).forEach(m => map.removeLayer(m));
   trainMarkers = {};
-  currentSimTimeSec = 9 * 3600;
-  timeLabel.innerText = "09:00:00";
+  currentSimTimeSec = 6 * 3600;
+  timeLabel.innerText = "06:00:00";
 });
 
 speedSelect.addEventListener("change", () => {
@@ -109,18 +106,12 @@ speedSelect.addEventListener("change", () => {
 });
 
 function updateTrains(timeStr) {
-  const week = weekdaySelect.value;
-  const direction = directionSelect.value;
-  const lineFilter = lineSelect.value;
+  const week_tag = weekSelect.value;
+  const inout_tag = directionSelect.value;
+  const line_filter = lineSelect.value;
+  const url = `/api/simulation_data?time=${timeStr}&week_tag=${week_tag}&inout_tag=${inout_tag}&line_filter=${line_filter}`;
 
-  const params = new URLSearchParams({
-    time: timeStr,
-    week,
-    direction,
-    line: lineFilter
-  });
-
-  fetch(`/api/simulation_data?${params.toString()}`)
+  fetch(url)
     .then(res => res.json())
     .then(data => {
       const activeIds = new Set();
@@ -138,18 +129,7 @@ function updateTrains(timeStr) {
 
         const icon = L.divIcon({
           className: 'emoji-icon',
-          html: `<div style="
-            font-size: 12px;
-            color: white;
-            border: 1px solid ${color};
-            border-radius: 50%;
-            width: 14px;
-            height: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: ${color};
-          ">🚇</div>`,
+          html: `<div style="font-size: 12px; color: white; border: 1px solid ${color}; border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; background-color: ${color};">🚇</div>`,
           iconSize: [14, 14],
           iconAnchor: [7, 7]
         });
