@@ -20,16 +20,7 @@ with open(line_path, encoding="utf-8") as f:
 # 📍 역 좌표 딕셔너리
 station_dict = {row['역명']: (row['위도'], row['경도']) for _, row in df_station.iterrows()}
 
-# 📍 열차별 종착역 딕셔너리
-df_sorted = df_timetable.sort_values(by=["TRAIN_NO", "ARRIVETIME"])
-train_dest_map = (
-    df_sorted.groupby("TRAIN_NO")
-    .tail(1)[["TRAIN_NO", "SUBWAYENAME"]]
-    .rename(columns={"SUBWAYENAME": "DEST"})
-)
-train_dest_map = dict(zip(train_dest_map["TRAIN_NO"], train_dest_map["DEST"]))
-
-# ✅ 메인 페이지 렌더링 (ver.1)
+# ✅ 메인 페이지 렌더링
 @app.route("/")
 def index():
     return render_template("index_ver_1.html")
@@ -45,10 +36,14 @@ def stations():
 def lines():
     return jsonify(line_orders)
 
-# ✅ 시뮬레이션용 열차 위치 정보 API
+# ✅ 열차 시뮬레이션 데이터 API (시간 + 필터 적용)
 @app.route("/api/simulation_data")
 def simulation_data():
     req_time = request.args.get("time")
+    req_week = request.args.get("week")       # ex) 1, 2, 3
+    req_direction = request.args.get("direction")  # ex) 1, 2
+    req_line = request.args.get("line")       # ex) "05호선"
+
     if not req_time:
         return jsonify([])
 
@@ -57,13 +52,23 @@ def simulation_data():
     except:
         return jsonify([])
 
-    # 🔍 운행 중인 열차 필터링
-    df_active = df_timetable[
-        (df_timetable['LEFTTIME'] < req_time) & 
-        (df_timetable['NEXT_ARRIVETIME'] > req_time)
+    df_filtered = df_timetable.copy()
+
+    # 조건 필터링
+    if req_week:
+        df_filtered = df_filtered[df_filtered['WEEK_TAG'] == int(req_week)]
+    if req_direction:
+        df_filtered = df_filtered[df_filtered['INOUT_TAG'] == int(req_direction)]
+    if req_line:
+        df_filtered = df_filtered[df_filtered['LINE_NUM'] == req_line]
+
+    # 시간 조건
+    df_active = df_filtered[
+        (df_filtered['LEFTTIME'] < req_time) &
+        (df_filtered['NEXT_ARRIVETIME'] > req_time)
     ]
 
-    active_trains = []
+    result = []
     for _, row in df_active.iterrows():
         try:
             t1 = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
@@ -73,22 +78,21 @@ def simulation_data():
 
             lat1, lon1 = station_dict.get(row['STATION_NM'], (None, None))
             lat2, lon2 = station_dict.get(row['NEXT_STATION'], (None, None))
+            if lat1 is None or lat2 is None:
+                continue
 
-            if lat1 is not None and lat2 is not None:
-                active_trains.append({
-                    'train_no': row['TRAIN_NO'],
-                    'line': row['LINE_NUM'],
-                    'from': row['STATION_NM'],
-                    'to': row['NEXT_STATION'],
-                    'progress': round(progress, 4),
-                    'dest': train_dest_map.get(row['TRAIN_NO'], row['SUBWAYENAME'])  # ✅ 종착역
-                })
-
+            result.append({
+                "train_no": row['TRAIN_NO'],
+                "line": row['LINE_NUM'],
+                "from": row['STATION_NM'],
+                "to": row['NEXT_STATION'],
+                "progress": progress
+            })
         except Exception as e:
-            print("Error in row processing:", e)
+            print(f"❌ Error processing row: {e}")
             continue
 
-    return jsonify(active_trains)
+    return jsonify(result)
 
 # ✅ 실행
 if __name__ == "__main__":
