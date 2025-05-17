@@ -19,7 +19,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let stationMarkers = {};
 let trainMarkers = {};
 let simInterval = null;
-let currentSimTimeSec = 6 * 3600;
+let currentSimTimeSec = 12 * 3600;
 let speedMultiplier = 1;
 
 const timeLabel = document.getElementById("timeLabel");
@@ -95,8 +95,8 @@ resetBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   Object.values(trainMarkers).forEach(m => map.removeLayer(m));
   trainMarkers = {};
-  currentSimTimeSec = 6 * 3600;
-  timeLabel.innerText = "06:00:00";
+  currentSimTimeSec = 12 * 3600;
+  timeLabel.innerText = "12:00:00";
 });
 
 speedSelect.addEventListener("change", () => {
