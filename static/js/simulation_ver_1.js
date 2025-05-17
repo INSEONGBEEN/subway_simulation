@@ -19,7 +19,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let stationMarkers = {};
 let trainMarkers = {};
 let simInterval = null;
-let currentSimTimeSec = 0;
+let currentSimTimeSec = 8*3600;
 let speedMultiplier = 1;
 
 const timeLabel = document.getElementById("timeLabel");
