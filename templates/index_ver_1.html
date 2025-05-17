@@ -3,61 +3,65 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🚇 지하철 시뮬레이션 (ver.1)</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style_ver_1.css') }}">
+  <title>서울 지하철 시뮬레이션 (Ver.1)</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" />
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" />
+  <style>
+    #controls {
+      padding: 10px;
+    }
+    #map {
+      height: 90vh;
+    }
+  </style>
 </head>
 <body>
   <div id="controls">
-    <h1>서울 지하철 시뮬레이션 (Ver.1)</h1>
+    <h1>🚇 서울 지하철 시뮬레이션 (Ver.1)</h1>
 
-    <div>
-      <label for="week-select">📅 요일:</label>
-      <select id="week-select">
-        <option value="1">평일</option>
-        <option value="2">토요일</option>
-        <option value="3">공휴일</option>
-      </select>
+    <label for="weekday-select">📆 요일:</label>
+    <select id="weekday-select">
+      <option value="3">평일</option>
+      <option value="2">토요일</option>
+      <option value="1">공휴일</option>
+    </select>
 
-      <label for="direction-select">↔️ 방향:</label>
-      <select id="direction-select">
-        <option value="1">상행/내선</option>
-        <option value="2">하행/외선</option>
-      </select>
+    <label for="direction-select">🔁 방향:</label>
+    <select id="direction-select">
+      <option value="0">전체</option>
+      <option value="1">상행</option>
+      <option value="2">하행</option>
+    </select>
 
-      <label for="line-select">🚈 호선:</label>
-      <select id="line-select">
-        <option value="">전체</option>
-        <option value="1호선">1호선</option>
-        <option value="2호선">2호선</option>
-        <option value="3호선">3호선</option>
-        <option value="4호선">4호선</option>
-        <option value="5호선">5호선</option>
-        <option value="6호선">6호선</option>
-        <option value="7호선">7호선</option>
-        <option value="8호선">8호선</option>
-      </select>
+    <label for="line-select">🚈 호선:</label>
+    <select id="line-select">
+      <option value="0">전체</option>
+      <option value="1">1호선</option>
+      <option value="2">2호선</option>
+      <option value="3">3호선</option>
+      <option value="4">4호선</option>
+      <option value="5">5호선</option>
+      <option value="6">6호선</option>
+      <option value="7">7호선</option>
+      <option value="8">8호선</option>
+    </select>
 
-      <label for="speed-select">⏩ 배속:</label>
-      <select id="speed-select">
-        <option value="1">1x</option>
-        <option value="2">2x</option>
-        <option value="5">5x</option>
-      </select>
-    </div>
+    <label for="speed-select">⏩ 배속:</label>
+    <select id="speed-select">
+      <option value="1">1x</option>
+      <option value="2">2x</option>
+      <option value="5">5x</option>
+    </select>
 
     <span id="timeLabel">06:00:00</span>
 
-    <div style="margin-top: 10px;">
-      <button id="start-btn">▶️ 시뮬레이션 시작</button>
-      <button id="reset-btn">⏹️ 초기화</button>
-    </div>
+    <button id="start-btn">▶️ 시작</button>
+    <button id="reset-btn">⏹️ 초기화</button>
   </div>
 
-  <div id="map" style="height: 90vh;"></div>
+  <div id="map"></div>
 
-  <script src="{{ url_for('static', filename='js/simulation_ver_1.js') }}"></script>
+  <script src="/static/js/simulation_ver_1.js"></script>
 </body>
 </html>
