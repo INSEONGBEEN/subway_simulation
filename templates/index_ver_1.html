@@ -12,18 +12,23 @@
 <body>
   <div id="controls">
     <h1>서울 지하철 시뮬레이션 (Ver.1)</h1>
-    <label for="speed-select">배속:</label>
+
+    <label for="speed-select">⏩ 배속 설정:</label>
     <select id="speed-select">
       <option value="1">1x</option>
       <option value="2">2x</option>
       <option value="5">5x</option>
+      <option value="10">10x</option>
     </select>
-    <span id="sim-time" style="margin-left: 20px; font-weight: bold;">00:00:00</span>
-    <br />
+
+    <span id="timeLabel">00:00:00</span>
+
     <button id="start-btn">▶️ 시뮬레이션 시작</button>
     <button id="reset-btn">⏹️ 초기화</button>
   </div>
+
   <div id="map" style="height: 90vh;"></div>
+
   <script src="{{ url_for('static', filename='js/simulation_ver_1.js') }}"></script>
 </body>
 </html>
