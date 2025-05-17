@@ -20,25 +20,29 @@ with open(line_path, encoding="utf-8") as f:
 # 📍 역 좌표 딕셔너리
 station_dict = {row['역명']: (row['위도'], row['경도']) for _, row in df_station.iterrows()}
 
+# ✅ 메인 페이지 렌더링
 @app.route("/")
 def index():
     return render_template("index_ver_1.html")
 
+# ✅ 역 위치 정보 API
 @app.route("/api/stations")
 def stations():
     df_station['호선명'] = df_station['호선'].astype(str) + '호선'
     return jsonify(df_station.to_dict(orient="records"))
 
+# ✅ 노선 연결 순서 API
 @app.route("/api/lines")
 def lines():
     return jsonify(line_orders)
 
+# ✅ 시뮬레이션용 열차 위치 정보 API
 @app.route("/api/simulation_data")
 def simulation_data():
     req_time = request.args.get("time")
-    selected_week = request.args.get("week", "3")  # 기본: 평일
-    selected_direction = request.args.get("direction", "0")  # 기본: 전체
-    selected_line = request.args.get("line", "all")  # 기본: 전체
+    selected_week = request.args.get("weekday", "3")       # 평일 = 3
+    selected_direction = request.args.get("direction", "전체")  # 상/하행 또는 전체
+    selected_line = request.args.get("line", "전체")        # 호선 선택 또는 전체
 
     if not req_time:
         return jsonify([])
@@ -48,16 +52,18 @@ def simulation_data():
     except:
         return jsonify([])
 
-    # 🔍 열차 필터링
+    # 🔍 필터링
     df_active = df_timetable.copy()
     df_active = df_active[df_active['LEFTTIME'] < req_time]
     df_active = df_active[df_active['NEXT_ARRIVETIME'] > req_time]
-    df_active = df_active[df_active['WEEK_TAG'].astype(str) == selected_week]
 
-    if selected_direction != "0":
+    if selected_week != "전체":
+        df_active = df_active[df_active['WEEK_TAG'].astype(str) == selected_week]
+
+    if selected_direction != "전체":
         df_active = df_active[df_active['INOUT_TAG'].astype(str) == selected_direction]
 
-    if selected_line != "all":
+    if selected_line != "전체":
         df_active = df_active[df_active['LINE_NUM'] == selected_line]
 
     active_trains = []
@@ -86,5 +92,6 @@ def simulation_data():
 
     return jsonify(active_trains)
 
+# ✅ 실행
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000, debug=True)
