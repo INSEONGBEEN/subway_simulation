@@ -20,6 +20,15 @@ with open(line_path, encoding="utf-8") as f:
 # 📍 역 좌표 딕셔너리
 station_dict = {row['역명']: (row['위도'], row['경도']) for _, row in df_station.iterrows()}
 
+# 📍 열차별 종착역 딕셔너리
+df_sorted = df_timetable.sort_values(by=["TRAIN_NO", "ARRIVETIME"])
+train_dest_map = (
+    df_sorted.groupby("TRAIN_NO")
+    .tail(1)[["TRAIN_NO", "SUBWAYENAME"]]
+    .rename(columns={"SUBWAYENAME": "DEST"})
+)
+train_dest_map = dict(zip(train_dest_map["TRAIN_NO"], train_dest_map["DEST"]))
+
 # ✅ 메인 페이지 렌더링 (ver.1)
 @app.route("/")
 def index():
@@ -48,7 +57,7 @@ def simulation_data():
     except:
         return jsonify([])
 
-    # 🔍 해당 시각에 운행 중인 열차 필터링
+    # 🔍 운행 중인 열차 필터링
     df_active = df_timetable[
         (df_timetable['LEFTTIME'] < req_time) & 
         (df_timetable['NEXT_ARRIVETIME'] > req_time)
@@ -60,7 +69,7 @@ def simulation_data():
             t1 = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
             t2 = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S")
             progress = (t_now - t1).total_seconds() / (t2 - t1).total_seconds()
-            progress = max(0, min(1, progress))  # 0~1 사이로 제한
+            progress = max(0, min(1, progress))
 
             lat1, lon1 = station_dict.get(row['STATION_NM'], (None, None))
             lat2, lon2 = station_dict.get(row['NEXT_STATION'], (None, None))
@@ -71,7 +80,8 @@ def simulation_data():
                     'line': row['LINE_NUM'],
                     'from': row['STATION_NM'],
                     'to': row['NEXT_STATION'],
-                    'progress': progress
+                    'progress': round(progress, 4),
+                    'dest': train_dest_map.get(row['TRAIN_NO'], row['SUBWAYENAME'])  # ✅ 종착역
                 })
 
         except Exception as e:
