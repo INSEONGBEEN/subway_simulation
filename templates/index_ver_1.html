@@ -13,18 +13,47 @@
   <div id="controls">
     <h1>서울 지하철 시뮬레이션 (Ver.1)</h1>
 
-    <label for="speed-select">⏩ 배속 설정:</label>
-    <select id="speed-select">
-      <option value="1">1x</option>
-      <option value="2">2x</option>
-      <option value="5">5x</option>
-      <option value="10">10x</option>
-    </select>
+    <div>
+      <label for="week-select">📅 요일:</label>
+      <select id="week-select">
+        <option value="1">평일</option>
+        <option value="2">토요일</option>
+        <option value="3">공휴일</option>
+      </select>
 
-    <span id="timeLabel">00:00:00</span>
+      <label for="direction-select">↔️ 방향:</label>
+      <select id="direction-select">
+        <option value="1">상행/내선</option>
+        <option value="2">하행/외선</option>
+      </select>
 
-    <button id="start-btn">▶️ 시뮬레이션 시작</button>
-    <button id="reset-btn">⏹️ 초기화</button>
+      <label for="line-select">🚈 호선:</label>
+      <select id="line-select">
+        <option value="">전체</option>
+        <option value="1호선">1호선</option>
+        <option value="2호선">2호선</option>
+        <option value="3호선">3호선</option>
+        <option value="4호선">4호선</option>
+        <option value="5호선">5호선</option>
+        <option value="6호선">6호선</option>
+        <option value="7호선">7호선</option>
+        <option value="8호선">8호선</option>
+      </select>
+
+      <label for="speed-select">⏩ 배속:</label>
+      <select id="speed-select">
+        <option value="1">1x</option>
+        <option value="2">2x</option>
+        <option value="5">5x</option>
+      </select>
+    </div>
+
+    <span id="timeLabel">06:00:00</span>
+
+    <div style="margin-top: 10px;">
+      <button id="start-btn">▶️ 시뮬레이션 시작</button>
+      <button id="reset-btn">⏹️ 초기화</button>
+    </div>
   </div>
 
   <div id="map" style="height: 90vh;"></div>
