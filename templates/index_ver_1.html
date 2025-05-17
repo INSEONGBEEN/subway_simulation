@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🚇 지하철 시뮬레이션 (ver.1)</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style_ver_1.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" />
+</head>
+<body>
+  <div id="controls">
+    <h1>서울 지하철 시뮬레이션 (Ver.1)</h1>
+    <div style="margin-top: 10px;">
+      <input type="range" id="timeSlider" min="0" max="1439" value="480" />
+      <span id="timeLabel">08:00:00</span>
+    </div>
+    <button id="start-btn">▶️ 시뮬레이션 시작</button>
+    <button id="reset-btn">⏹️ 초기화</button>
+  </div>
+  <div id="map" style="height: 90vh;"></div>
+  <script src="{{ url_for('static', filename='js/simulation_ver_1.js') }}"></script>
+</body>
+</html>
