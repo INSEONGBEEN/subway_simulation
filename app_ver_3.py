@@ -23,7 +23,7 @@ station_dict = {row['역명']: (row['위도'], row['경도']) for _, row in df_s
 
 @app.route("/")
 def index():
-    return render_template("index_ver_2.html")
+    return render_template("index_ver_3.html")
 
 @app.route("/api/stations")
 def stations():
