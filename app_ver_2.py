@@ -1,6 +1,7 @@
 # ✅ app_ver_2.py (최종 수정)
 from flask import Flask, render_template, jsonify, request
 import pandas as pd
+import sqlite3
 import os
 import json
 from datetime import datetime
@@ -10,12 +11,10 @@ app = Flask(__name__)
 # 📂 파일 경로
 station_path = os.path.join("data", "station.csv")
 line_path = os.path.join("data", "line_orders.json")
-timetable_path = os.path.join("data", "preprocessed_timetable.csv")
+db_path = os.path.join("data", "preprocessed_timetable.db")
 
-# 📄 데이터 로딩
-usecols = ["TRAIN_NO", "LINE_NUM", "STATION_NM", "ARRIVETIME", "LEFTTIME", "NEXT_STATION", "NEXT_ARRIVETIME", "WEEK_TAG", "INOUT_TAG"]
+# 📄 정적 파일 로딩
 df_station = pd.read_csv(station_path, encoding='utf-8')
-df_timetable = pd.read_csv(timetable_path, encoding="utf-8-sig", usecols=usecols, dtype=str)
 with open(line_path, encoding="utf-8") as f:
     line_orders = json.load(f)
 
@@ -50,15 +49,29 @@ def simulation_data():
     except:
         return jsonify([])
 
-    df_active = df_timetable.copy()
-    df_active = df_active[(df_active['ARRIVETIME'] <= req_time) & (df_active['NEXT_ARRIVETIME'] >= req_time)]
-
+    # 📌 SQL 쿼리 구성
+    conditions = [
+        f"ARRIVETIME <= '{req_time}'",
+        f"NEXT_ARRIVETIME >= '{req_time}'"
+    ]
     if selected_week != "전체":
-        df_active = df_active[df_active['WEEK_TAG'] == selected_week]
+        conditions.append(f"WEEK_TAG = '{selected_week}'")
     if selected_direction != "전체":
-        df_active = df_active[df_active['INOUT_TAG'] == selected_direction]
+        conditions.append(f"INOUT_TAG = '{selected_direction}'")
     if selected_line != "전체":
-        df_active = df_active[df_active['LINE_NUM'] == selected_line]
+        conditions.append(f"LINE_NUM = '{selected_line}'")
+
+    where_clause = " AND ".join(conditions)
+    query = f"""
+        SELECT TRAIN_NO, LINE_NUM, STATION_NM, ARRIVETIME, LEFTTIME,
+               NEXT_STATION, NEXT_ARRIVETIME
+        FROM timetable
+        WHERE {where_clause}
+    """
+
+    conn = sqlite3.connect(db_path)
+    df_active = pd.read_sql_query(query, conn)
+    conn.close()
 
     active_trains = []
     for _, row in df_active.iterrows():
@@ -75,27 +88,25 @@ def simulation_data():
         try:
             t_arrive = datetime.strptime(row['ARRIVETIME'], "%H:%M:%S")
             t_depart = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
-            t_next_arrive = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S") if pd.notna(row['NEXT_ARRIVETIME']) else None
+            t_next_arrive = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S") if row['NEXT_ARRIVETIME'] else None
             progress = 0.0
             status = "stopped"
 
             if t_arrive <= t_now < t_depart:
                 # 정차 중
-                progress = 0
-                status = "stopped"
                 lat, lon = lat1, lon1
+                status = "stopped"
             elif t_depart <= t_now and t_next_arrive:
                 # 이동 중
                 total_time = (t_next_arrive - t_depart).total_seconds()
                 passed_time = (t_now - t_depart).total_seconds()
                 progress = max(0, min(1, passed_time / total_time))
-                status = "moving"
                 lat = lat1 + (lat2 - lat1) * progress
                 lon = lon1 + (lon2 - lon1) * progress
-            elif pd.isna(row['NEXT_ARRIVETIME']):
+                status = "moving"
+            elif not row['NEXT_ARRIVETIME']:
                 # 종착역
                 lat, lon = lat1, lon1
-                progress = 0
                 status = "terminal"
             else:
                 continue
@@ -104,13 +115,15 @@ def simulation_data():
                 'train_no': train_no,
                 'line': line,
                 'from': from_station,
-                'to': to_station if pd.notna(to_station) else from_station,
+                'to': to_station if to_station else from_station,
                 'progress': progress,
                 'status': status,
                 'lat': lat,
                 'lon': lon
             })
-        except:
+
+        except Exception as e:
+            print("❗ Error:", e)
             continue
 
     return jsonify(active_trains)
