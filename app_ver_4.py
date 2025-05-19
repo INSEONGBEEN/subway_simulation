@@ -8,24 +8,20 @@ import ast
 
 app = Flask(__name__)
 
-# 경로 설정
+# 📁 경로 설정
 station_path = os.path.join("data", "station.csv")
 line_path = os.path.join("data", "line_orders.json")
 db_path = os.path.join("data", "preprocessed_timetable.db")
 
-# 정적 데이터 로딩
+# 📄 정적 데이터 로딩
 df_station = pd.read_csv(station_path, encoding='utf-8')
 with open(line_path, encoding="utf-8") as f:
     line_orders = json.load(f)
 
 station_dict = {row['역명']: (row['위도'], row['경도']) for _, row in df_station.iterrows()}
 
-# 누적 지연 저장용 딕셔너리
-train_delay_tracker = {}
-
-# 역 이름 정규화 함수
-def normalize(name):
-    return name.replace("역", "").strip()
+# ✅ 누적 지연 저장용 전역 딕셔너리
+delay_tracker = {}
 
 @app.route("/")
 def index():
@@ -59,14 +55,8 @@ def simulation_data():
     except:
         congested_stations = set()
 
-    weather_delay = {
-        "none": 0,
-        "약함": 5,
-        "보통": 10,
-        "강함": 20
-    }
-    delay_buffer = weather_delay.get(congestion_level, 0)
-    norm_congested = set(map(normalize, congested_stations))
+    delay_map = {"none": 0, "약함": 5, "보통": 10, "강함": 20}
+    delay_buffer = delay_map.get(congestion_level, 0)
 
     conn = sqlite3.connect(db_path)
     query = """
@@ -75,8 +65,7 @@ def simulation_data():
         FROM preprocessed_timetable
         WHERE ARRIVETIME <= ? AND NEXT_ARRIVETIME >= ?
     """
-    params = [req_time, req_time]
-    df = pd.read_sql_query(query, conn, params=params)
+    df = pd.read_sql_query(query, conn, params=[req_time, req_time])
     conn.close()
 
     if selected_week != "전체":
@@ -86,7 +75,7 @@ def simulation_data():
     if selected_line != "전체":
         df = df[df['LINE_NUM'] == selected_line]
 
-    active_trains = []
+    result = []
     for _, row in df.iterrows():
         try:
             train_no = row['TRAIN_NO']
@@ -101,23 +90,25 @@ def simulation_data():
 
             t_arrive = datetime.strptime(row['ARRIVETIME'], "%H:%M:%S")
             t_depart = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
-            t_next_arrive = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S") if pd.notna(row['NEXT_ARRIVETIME']) else None
+            t_next = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S") if pd.notna(row['NEXT_ARRIVETIME']) else None
 
-            delay_applied = 0
-            if normalize(from_station) in norm_congested and delay_buffer > 0:
-                delay_applied = delay_buffer
-                train_delay_tracker[train_no] = train_delay_tracker.get(train_no, 0) + delay_applied
-                t_depart += timedelta(seconds=delay_applied)
+            if train_no not in delay_tracker:
+                delay_tracker[train_no] = {"accum_delay": 0, "applied_stations": set()}
+
+            if from_station in congested_stations and from_station not in delay_tracker[train_no]["applied_stations"]:
+                delay_tracker[train_no]["accum_delay"] += delay_buffer
+                delay_tracker[train_no]["applied_stations"].add(from_station)
+                t_depart += timedelta(seconds=delay_buffer)
 
             if t_arrive <= t_now < t_depart:
                 status = "stopped"
                 progress = 0
                 lat, lon = lat1, lon1
-            elif t_depart <= t_now and t_next_arrive:
+            elif t_depart <= t_now and t_next:
                 status = "moving"
-                total_time = (t_next_arrive - t_depart).total_seconds()
-                passed_time = (t_now - t_depart).total_seconds()
-                progress = max(0, min(1, passed_time / total_time))
+                total = (t_next - t_depart).total_seconds()
+                passed = (t_now - t_depart).total_seconds()
+                progress = max(0, min(1, passed / total))
                 lat = lat1 + (lat2 - lat1) * progress
                 lon = lon1 + (lon2 - lon1) * progress
             elif pd.isna(row['NEXT_ARRIVETIME']):
@@ -127,7 +118,7 @@ def simulation_data():
             else:
                 continue
 
-            active_trains.append({
+            result.append({
                 "train_no": train_no,
                 "line": line,
                 "from": from_station,
@@ -136,13 +127,12 @@ def simulation_data():
                 "status": status,
                 "lat": lat,
                 "lon": lon,
-                "delay": train_delay_tracker.get(train_no, 0)
+                "delay": delay_tracker[train_no]["accum_delay"]
             })
-
         except:
             continue
 
-    return jsonify(active_trains)
+    return jsonify(result)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000, debug=True)
