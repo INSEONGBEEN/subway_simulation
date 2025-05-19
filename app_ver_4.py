@@ -8,20 +8,24 @@ import ast
 
 app = Flask(__name__)
 
-# 📁 경로 설정
+# 경로 설정
 station_path = os.path.join("data", "station.csv")
 line_path = os.path.join("data", "line_orders.json")
 db_path = os.path.join("data", "preprocessed_timetable.db")
 
-# 📄 정적 데이터 로딩
+# 정적 데이터 로딩
 df_station = pd.read_csv(station_path, encoding='utf-8')
 with open(line_path, encoding="utf-8") as f:
     line_orders = json.load(f)
 
 station_dict = {row['역명']: (row['위도'], row['경도']) for _, row in df_station.iterrows()}
 
-# ✅ 누적 지연 저장용 전역 딕셔너리
+# 누적 지연 저장용 딕셔너리
 train_delay_tracker = {}
+
+# 역 이름 정규화 함수
+def normalize(name):
+    return name.replace("역", "").strip()
 
 @app.route("/")
 def index():
@@ -55,7 +59,6 @@ def simulation_data():
     except:
         congested_stations = set()
 
-    # ⏱️ 날씨에 따른 delay 기준 (초 단위)
     weather_delay = {
         "none": 0,
         "약함": 5,
@@ -63,8 +66,8 @@ def simulation_data():
         "강함": 20
     }
     delay_buffer = weather_delay.get(congestion_level, 0)
+    norm_congested = set(map(normalize, congested_stations))
 
-    # 📦 DB 쿼리
     conn = sqlite3.connect(db_path)
     query = """
         SELECT TRAIN_NO, LINE_NUM, STATION_NM, ARRIVETIME, LEFTTIME, 
@@ -76,7 +79,6 @@ def simulation_data():
     df = pd.read_sql_query(query, conn, params=params)
     conn.close()
 
-    # 🔍 필터 적용
     if selected_week != "전체":
         df = df[df['WEEK_TAG'] == selected_week]
     if selected_direction != "전체":
@@ -84,7 +86,6 @@ def simulation_data():
     if selected_line != "전체":
         df = df[df['LINE_NUM'] == selected_line]
 
-    # ✅ 열차 상태 계산
     active_trains = []
     for _, row in df.iterrows():
         try:
@@ -103,12 +104,11 @@ def simulation_data():
             t_next_arrive = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S") if pd.notna(row['NEXT_ARRIVETIME']) else None
 
             delay_applied = 0
-            if from_station in congested_stations and delay_buffer > 0:
+            if normalize(from_station) in norm_congested and delay_buffer > 0:
                 delay_applied = delay_buffer
                 train_delay_tracker[train_no] = train_delay_tracker.get(train_no, 0) + delay_applied
                 t_depart += timedelta(seconds=delay_applied)
 
-            # 상태 판단
             if t_arrive <= t_now < t_depart:
                 status = "stopped"
                 progress = 0
@@ -127,7 +127,6 @@ def simulation_data():
             else:
                 continue
 
-            # 최종 응답
             active_trains.append({
                 "train_no": train_no,
                 "line": line,
