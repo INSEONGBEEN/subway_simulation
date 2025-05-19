@@ -171,7 +171,7 @@ function updateTrains(timeStr) {
         }
       });
 
-      // ✅ 현재 응답에 포함되지 않은 train 마커는 삭제
+      // ❌ 종착역 도달한 열차만 제거
       for (const key in trainMarkers) {
         if (!activeIds.has(key)) {
           map.removeLayer(trainMarkers[key]);
