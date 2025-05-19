@@ -24,7 +24,8 @@ let currentSimTimeSec = 9 * 3600;
 let speedMultiplier = 1;
 let congestedStations = new Set();
 let weatherLevel = "none";
-let delayMap = {};  // 누적 지연 시간 저장
+let delayMap = {}; // 누적 지연 시간
+let dragEnabled = false;
 
 const timeLabel = document.getElementById("timeLabel");
 const speedSelect = document.getElementById("speed-select");
@@ -35,7 +36,6 @@ const weekdaySelect = document.getElementById("weekday-select");
 const lineSelect = document.getElementById("line-select");
 const weatherSelect = document.getElementById("weather-select");
 
-// ✅ 시간 변환 함수
 function secondsToTimeString(seconds) {
   const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
   const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
@@ -67,8 +67,8 @@ fetch('/api/stations')
         color: color,
         fillColor: color,
         fillOpacity: 0.7
-      }).bindPopup(`${station.역명} (${lineName})`).addTo(map);
-      stationMarkers[station.역명] = [station.위도, station.경도];
+      }).bindPopup(`${station.연명} (${lineName})`).addTo(map);
+      stationMarkers[station.연명] = [station.위도, station.경도];
     });
 
     fetch('/api/lines')
@@ -89,7 +89,7 @@ fetch('/api/stations')
       });
   });
 
-// ▶️ 시뮬레이션 시작
+// ✅ 4. 시뮬레이션 컨트롤
 startBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   simInterval = setInterval(() => {
@@ -99,15 +99,14 @@ startBtn.addEventListener("click", () => {
   }, 1000);
 });
 
-// ⏹️ 초기화
 resetBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   Object.values(trainMarkers).forEach(m => map.removeLayer(m));
   trainMarkers = {};
+  delayMap = {};
+  congestedStations.clear();
   currentSimTimeSec = 9 * 3600;
   timeLabel.innerText = "09:00:00";
-  congestedStations.clear();
-  delayMap = {};
 });
 
 speedSelect.addEventListener("change", () => {
@@ -116,19 +115,16 @@ speedSelect.addEventListener("change", () => {
 
 weatherSelect.addEventListener("change", () => {
   weatherLevel = weatherSelect.value;
+  dragEnabled = weatherLevel !== "none"; // 🆕 날씨 있을 때만 드래그 가능
 });
 
-// ✅ 4. 열차 위치 업데이트
+// ✅ 5. 열차 위치 업데이트
 function updateTrains(timeStr) {
-  const direction = directionSelect.value;
-  const weekday = weekdaySelect.value;
-  const line = lineSelect.value;
-
   const params = new URLSearchParams({
     time: timeStr,
-    direction: direction,
-    weekday: weekday,
-    line: line,
+    direction: directionSelect.value,
+    weekday: weekdaySelect.value,
+    line: lineSelect.value,
     congested: JSON.stringify([...congestedStations]),
     weather: weatherLevel
   });
@@ -139,49 +135,38 @@ function updateTrains(timeStr) {
       const activeIds = new Set();
 
       data.forEach(train => {
+        const key = train.train_no;
         const lat = train.lat;
         const lon = train.lon;
         const lineName = `${parseInt(train.line)}호선`;
         const color = lineColors[lineName] || 'gray';
-        const key = train.train_no;
-        activeIds.add(key);
 
-        // ✅ 누적 지연은 프론트에서 관리 (역 도착 시만 누적)
-        if (train.status === "stopped" && parseFloat(train.progress) === 0) {
-          delayMap[key] = (delayMap[key] || 0) + parseInt(train.delay || 0);
-        }
+        // 누적 지연 관리
+        const currentDelay = parseInt(train.delay || 0);
+        delayMap[key] = (delayMap[key] || 0) + currentDelay;
+
+        const popup = `
+          🚆 ${lineName}<br>
+          열차번호: ${key}<br>
+          다음역: ${train.to}<br>
+          ⏱️ 누적 지연: ${delayMap[key]}초
+        `;
 
         const icon = L.divIcon({
           className: 'emoji-icon',
-          html: `<div style="
-              font-size: 12px;
-              color: white;
-              border: 1px solid ${color};
-              border-radius: 50%;
-              width: 14px;
-              height: 14px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              background-color: ${color};
-            ">🚇</div>`,
+          html: `<div style="font-size:12px;color:white;border:1px solid ${color};background:${color};border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center">🚇</div>`,
           iconSize: [14, 14],
           iconAnchor: [7, 7]
         });
 
-        const popupText = `
-          🚆 ${lineName}<br>
-          열차번호: ${train.train_no}<br>
-          다음역: ${train.to}<br>
-          ⏱️ 누적 지연: ${delayMap[key] || 0}초
-        `;
+        activeIds.add(key);
 
         if (trainMarkers[key]) {
           const prev = trainMarkers[key].getLatLng();
           animateMove(trainMarkers[key], prev, L.latLng(lat, lon), 1000);
-          trainMarkers[key].setPopupContent(popupText);
+          trainMarkers[key].setPopupContent(popup);
         } else {
-          const marker = L.marker([lat, lon], { icon: icon }).bindPopup(popupText);
+          const marker = L.marker([lat, lon], { icon: icon }).bindPopup(popup);
           marker.addTo(map);
           trainMarkers[key] = marker;
         }
@@ -197,15 +182,14 @@ function updateTrains(timeStr) {
     });
 }
 
-// ✅ 5. 드래그로 날씨 영향 반영
+// ✅ 6. 드래그 선택 로직 (날씨 영향 시에만 활성)
 let rectangle = null;
 let startPoint = null;
 
 map.on("mousedown", (e) => {
-  if (e.originalEvent.shiftKey) {
-    startPoint = e.latlng;
-    if (rectangle) map.removeLayer(rectangle);
-  }
+  if (!dragEnabled) return;
+  startPoint = e.latlng;
+  if (rectangle) map.removeLayer(rectangle);
 });
 
 map.on("mousemove", (e) => {
@@ -221,12 +205,12 @@ map.on("mousemove", (e) => {
 map.on("mouseup", () => {
   if (!rectangle) return;
   const bounds = rectangle.getBounds();
-  const affectedStations = Object.entries(stationMarkers)
+  const affected = Object.entries(stationMarkers)
     .filter(([_, coord]) => bounds.contains(L.latLng(coord)))
     .map(([name]) => name);
 
-  affectedStations.forEach(name => congestedStations.add(name));
-  alert(`🌧️ 날씨 적용: ${affectedStations.length}개 역`);
+  affected.forEach(name => congestedStations.add(name));
+  alert(`🌧️ 날씨 영향 ${affected.length}개 역 적용됨`);
 
   map.removeLayer(rectangle);
   rectangle = null;
