@@ -106,7 +106,6 @@ speedSelect.addEventListener("change", () => {
   speedMultiplier = parseInt(speedSelect.value);
 });
 
-// ✅ 열차 업데이트
 function updateTrains(timeStr) {
   const direction = directionSelect.value;
   const weekday = weekdaySelect.value;
@@ -172,7 +171,7 @@ function updateTrains(timeStr) {
         }
       });
 
-      // ❌ 종착한 열차만 제거
+      // ✅ 현재 응답에 포함되지 않은 train 마커는 삭제
       for (const key in trainMarkers) {
         if (!activeIds.has(key)) {
           map.removeLayer(trainMarkers[key]);
