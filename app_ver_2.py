@@ -1,9 +1,8 @@
-# ✅ app_ver_2.py (최종 수정)
 from flask import Flask, render_template, jsonify, request
 import pandas as pd
-import sqlite3
 import os
 import json
+import sqlite3
 from datetime import datetime
 
 app = Flask(__name__)
@@ -13,12 +12,11 @@ station_path = os.path.join("data", "station.csv")
 line_path = os.path.join("data", "line_orders.json")
 db_path = os.path.join("data", "preprocessed_timetable.db")
 
-# 📄 정적 파일 로딩
+# 📄 역 위치, 노선 불러오기
 df_station = pd.read_csv(station_path, encoding='utf-8')
 with open(line_path, encoding="utf-8") as f:
     line_orders = json.load(f)
 
-# 📍 역 좌표 딕셔너리
 station_dict = {row['역명']: (row['위도'], row['경도']) for _, row in df_station.iterrows()}
 
 @app.route("/")
@@ -49,32 +47,26 @@ def simulation_data():
     except:
         return jsonify([])
 
-    # 📌 SQL 쿼리 구성
-    conditions = [
-        f"ARRIVETIME <= '{req_time}'",
-        f"NEXT_ARRIVETIME >= '{req_time}'"
-    ]
-    if selected_week != "전체":
-        conditions.append(f"WEEK_TAG = '{selected_week}'")
-    if selected_direction != "전체":
-        conditions.append(f"INOUT_TAG = '{selected_direction}'")
-    if selected_line != "전체":
-        conditions.append(f"LINE_NUM = '{selected_line}'")
-
-    where_clause = " AND ".join(conditions)
-    query = f"""
-        SELECT TRAIN_NO, LINE_NUM, STATION_NM, ARRIVETIME, LEFTTIME,
-               NEXT_STATION, NEXT_ARRIVETIME
-        FROM timetable
-        WHERE {where_clause}
-    """
-
     conn = sqlite3.connect(db_path)
-    df_active = pd.read_sql_query(query, conn)
+    query = f"""
+        SELECT TRAIN_NO, LINE_NUM, STATION_NM, ARRIVETIME, LEFTTIME, 
+               NEXT_STATION, NEXT_ARRIVETIME, WEEK_TAG, INOUT_TAG
+        FROM timetable
+        WHERE ARRIVETIME <= ? AND NEXT_ARRIVETIME >= ?
+    """
+    params = [req_time, req_time]
+    df = pd.read_sql_query(query, conn, params=params)
     conn.close()
 
+    if selected_week != "전체":
+        df = df[df['WEEK_TAG'] == selected_week]
+    if selected_direction != "전체":
+        df = df[df['INOUT_TAG'] == selected_direction]
+    if selected_line != "전체":
+        df = df[df['LINE_NUM'] == selected_line]
+
     active_trains = []
-    for _, row in df_active.iterrows():
+    for _, row in df.iterrows():
         train_no = row['TRAIN_NO']
         line = row['LINE_NUM']
         from_station = row['STATION_NM']
@@ -88,25 +80,27 @@ def simulation_data():
         try:
             t_arrive = datetime.strptime(row['ARRIVETIME'], "%H:%M:%S")
             t_depart = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
-            t_next_arrive = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S") if row['NEXT_ARRIVETIME'] else None
+            t_next_arrive = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S") if pd.notna(row['NEXT_ARRIVETIME']) else None
             progress = 0.0
             status = "stopped"
 
             if t_arrive <= t_now < t_depart:
                 # 정차 중
-                lat, lon = lat1, lon1
+                progress = 0
                 status = "stopped"
+                lat, lon = lat1, lon1
             elif t_depart <= t_now and t_next_arrive:
                 # 이동 중
                 total_time = (t_next_arrive - t_depart).total_seconds()
                 passed_time = (t_now - t_depart).total_seconds()
                 progress = max(0, min(1, passed_time / total_time))
+                status = "moving"
                 lat = lat1 + (lat2 - lat1) * progress
                 lon = lon1 + (lon2 - lon1) * progress
-                status = "moving"
-            elif not row['NEXT_ARRIVETIME']:
+            elif pd.isna(row['NEXT_ARRIVETIME']):
                 # 종착역
                 lat, lon = lat1, lon1
+                progress = 0
                 status = "terminal"
             else:
                 continue
@@ -115,15 +109,13 @@ def simulation_data():
                 'train_no': train_no,
                 'line': line,
                 'from': from_station,
-                'to': to_station if to_station else from_station,
+                'to': to_station if pd.notna(to_station) else from_station,
                 'progress': progress,
                 'status': status,
                 'lat': lat,
                 'lon': lon
             })
-
-        except Exception as e:
-            print("❗ Error:", e)
+        except:
             continue
 
     return jsonify(active_trains)
