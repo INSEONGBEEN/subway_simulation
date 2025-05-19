@@ -51,7 +51,7 @@ def simulation_data():
     query = f"""
         SELECT TRAIN_NO, LINE_NUM, STATION_NM, ARRIVETIME, LEFTTIME, 
                NEXT_STATION, NEXT_ARRIVETIME, WEEK_TAG, INOUT_TAG
-        FROM timetable
+        FROM preprocessed_timetable
         WHERE ARRIVETIME <= ? AND NEXT_ARRIVETIME >= ?
     """
     params = [req_time, req_time]
