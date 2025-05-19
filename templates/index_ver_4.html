@@ -68,13 +68,19 @@
     <label for="weather-select">🌧️ 날씨 영향:</label>
     <select id="weather-select">
       <option value="none">없음</option>
-      <option value="light">약함</option>
-      <option value="moderate">보통</option>
-      <option value="heavy">강함</option>
+      <option value="약함">약함</option>
+      <option value="보통">보통</option>
+      <option value="강함">강함</option>
     </select>
 
+    <!-- 드래그 모드 토글 -->
+    <label style="margin-left: 10px;">
+      <input type="checkbox" id="weather-toggle" />
+      🖱️ 드래그로 날씨 영향 주기
+    </label>
+
     <p style="font-size: 12px; margin-top: 5px;">
-      🖱️ 지도에서 <strong>드래그 선택</strong>하여 날씨 영향을 적용할 지역을 지정하세요.
+      체크 후 지도에서 <strong>드래그</strong>하여 날씨 영향을 적용할 지역을 지정하세요.
     </p>
   </div>
 
