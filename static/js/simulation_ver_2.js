@@ -18,7 +18,6 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 let stationMarkers = {};
 let trainMarkers = {};
-let trainStatus = {};
 let simInterval = null;
 let currentSimTimeSec = 9 * 3600;
 let speedMultiplier = 1;
@@ -99,7 +98,6 @@ resetBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   Object.values(trainMarkers).forEach(m => map.removeLayer(m));
   trainMarkers = {};
-  trainStatus = {};
   currentSimTimeSec = 9 * 3600;
   timeLabel.innerText = "09:00:00";
 });
@@ -108,6 +106,7 @@ speedSelect.addEventListener("change", () => {
   speedMultiplier = parseInt(speedSelect.value);
 });
 
+// ✅ 열차 업데이트
 function updateTrains(timeStr) {
   const direction = directionSelect.value;
   const weekday = weekdaySelect.value;
@@ -163,12 +162,8 @@ function updateTrains(timeStr) {
         });
 
         if (trainMarkers[key]) {
-          if (train.status === 'moving') {
-            const prev = trainMarkers[key].getLatLng();
-            animateMove(trainMarkers[key], prev, L.latLng(lat, lon), 1000);
-          } else {
-            trainMarkers[key].setLatLng([lat, lon]);
-          }
+          const prev = trainMarkers[key].getLatLng();
+          animateMove(trainMarkers[key], prev, L.latLng(lat, lon), 1000);
         } else {
           const marker = L.marker([lat, lon], { icon: icon })
             .bindPopup(`🚆 ${lineName}<br>${train.train_no}<br>→ ${train.to}`);
@@ -177,6 +172,7 @@ function updateTrains(timeStr) {
         }
       });
 
+      // ❌ 종착한 열차만 제거
       for (const key in trainMarkers) {
         if (!activeIds.has(key)) {
           map.removeLayer(trainMarkers[key]);
@@ -186,4 +182,3 @@ function updateTrains(timeStr) {
     })
     .catch(err => console.error("🚨 로딩 실패:", err));
 }
-
