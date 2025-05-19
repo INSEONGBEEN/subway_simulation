@@ -1,4 +1,3 @@
-# ✅ app_ver_2.py
 from flask import Flask, render_template, jsonify, request
 import pandas as pd
 import os
@@ -21,19 +20,23 @@ with open(line_path, encoding="utf-8") as f:
 # 📍 역 좌표 딕셔너리
 station_dict = {row['역명']: (row['위도'], row['경도']) for _, row in df_station.iterrows()}
 
+# ✅ 메인 페이지 렌더링 (ver_2를 사용)
 @app.route("/")
 def index():
-    return render_template("index_ver_3.html")
+    return render_template("index_ver_2.html")
 
+# ✅ 역 위치 정보 API
 @app.route("/api/stations")
 def stations():
     df_station['호선명'] = df_station['호선'].astype(str) + '호선'
     return jsonify(df_station.to_dict(orient="records"))
 
+# ✅ 노선 연결 순서 API
 @app.route("/api/lines")
 def lines():
     return jsonify(line_orders)
 
+# ✅ 시뮬레이션 열차 위치 정보 API
 @app.route("/api/simulation_data")
 def simulation_data():
     req_time = request.args.get("time")
@@ -70,7 +73,7 @@ def simulation_data():
             if lat1 is None:
                 continue
 
-            # 정차 상태: 같은 역에 머물고 있는 경우
+            # 정차 상태 판단
             if row['STATION_NM'] == row['NEXT_STATION'] or pd.isna(row['NEXT_STATION']):
                 active_trains.append({
                     'train_no': row['TRAIN_NO'],
@@ -101,5 +104,6 @@ def simulation_data():
 
     return jsonify(active_trains)
 
+# ✅ 실행
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000, debug=True)
