@@ -1,3 +1,4 @@
+// ✅ 0. 노선 색상 정의
 const lineColors = {
   "1호선": "blue",
   "2호선": "green",
@@ -9,6 +10,7 @@ const lineColors = {
   "8호선": "pink"
 };
 
+// ✅ 1. 지도 초기화
 const map = L.map('map').setView([37.5665, 126.9780], 11);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
@@ -47,6 +49,7 @@ function animateMove(marker, fromLatLng, toLatLng, duration = 1000) {
   requestAnimationFrame(step);
 }
 
+// ✅ 2. 역 및 선로 렌더링
 fetch('/api/stations')
   .then(res => res.json())
   .then(stations => {
@@ -80,6 +83,7 @@ fetch('/api/stations')
       });
   });
 
+// ▶️ 시작 버튼
 startBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   simInterval = setInterval(() => {
@@ -89,6 +93,7 @@ startBtn.addEventListener("click", () => {
   }, 1000);
 });
 
+// ⏹️ 초기화
 resetBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   Object.values(trainMarkers).forEach(m => map.removeLayer(m));
@@ -101,6 +106,7 @@ speedSelect.addEventListener("change", () => {
   speedMultiplier = parseInt(speedSelect.value);
 });
 
+// ✅ 열차 업데이트
 function updateTrains(timeStr) {
   const direction = directionSelect.value;
   const weekday = weekdaySelect.value;
@@ -112,10 +118,12 @@ function updateTrains(timeStr) {
       const activeIds = new Set();
 
       data.forEach(train => {
-        const { train_no, line, lat, lon, to, status } = train;
-        const lineName = `${parseInt(line)}호선`;
+        const lat = train.lat;
+        const lon = train.lon;
+        const key = train.train_no;
+        const lineName = `${parseInt(train.line)}호선`;
         const color = lineColors[lineName] || 'gray';
-        const key = train_no;
+
         activeIds.add(key);
 
         const icon = L.divIcon({
@@ -141,17 +149,19 @@ function updateTrains(timeStr) {
           animateMove(trainMarkers[key], prev, L.latLng(lat, lon), 1000);
         } else {
           const marker = L.marker([lat, lon], { icon: icon })
-            .bindPopup(`🚆 ${lineName}<br>${train_no}<br>→ ${to}`);
+            .bindPopup(`🚆 ${lineName}<br>${train.train_no}<br>→ ${train.to}`);
           marker.addTo(map);
           trainMarkers[key] = marker;
         }
       });
 
+      // ❌ 종착역 도달하지 않은 열차만 유지
       for (const key in trainMarkers) {
         if (!activeIds.has(key)) {
           map.removeLayer(trainMarkers[key]);
           delete trainMarkers[key];
         }
       }
-    });
+    })
+    .catch(err => console.error("🚨 로딩 실패:", err));
 }
