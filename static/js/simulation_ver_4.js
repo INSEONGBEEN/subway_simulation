@@ -222,6 +222,3 @@ map.on("mouseup", () => {
   rectangle = null;
   startPoint = null;
 });
-  rectangle = null;
-  startPoint = null;
-});
