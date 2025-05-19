@@ -117,12 +117,8 @@ function updateTrains(timeStr) {
       const activeIds = new Set();
 
       data.forEach(train => {
-        const from = stationMarkers[train.from];
-        const to = stationMarkers[train.to];
-        if (!from || !to) return;
-
-        const lat = from[0] + (to[0] - from[0]) * train.progress;
-        const lon = from[1] + (to[1] - from[1]) * train.progress;
+        const lat = train.lat;
+        const lon = train.lon;
         const lineName = `${parseInt(train.line)}호선`;
         const color = lineColors[lineName] || 'gray';
         const key = train.train_no;
@@ -130,7 +126,8 @@ function updateTrains(timeStr) {
 
         const icon = L.divIcon({
           className: 'emoji-icon',
-          html: `<div style="
+          html: `
+            <div style="
               font-size: 12px;
               color: white;
               border: 1px solid ${color};
