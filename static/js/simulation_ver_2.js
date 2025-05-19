@@ -180,3 +180,4 @@ function updateTrains(timeStr) {
     })
     .catch(err => console.error("🚨 로딩 실패:", err));
 }
+
