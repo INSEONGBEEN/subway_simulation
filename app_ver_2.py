@@ -1,3 +1,4 @@
+# ✅ app_ver_2.py (수정 버전: 정차 상태 + 종착역 반영)
 from flask import Flask, render_template, jsonify, request
 import pandas as pd
 import os
@@ -20,23 +21,19 @@ with open(line_path, encoding="utf-8") as f:
 # 📍 역 좌표 딕셔너리
 station_dict = {row['역명']: (row['위도'], row['경도']) for _, row in df_station.iterrows()}
 
-# ✅ 메인 페이지 렌더링 (ver_2 사용)
 @app.route("/")
 def index():
     return render_template("index_ver_2.html")
 
-# ✅ 역 위치 정보 API
 @app.route("/api/stations")
 def stations():
     df_station['호선명'] = df_station['호선'].astype(str) + '호선'
     return jsonify(df_station.to_dict(orient="records"))
 
-# ✅ 노선 연결 순서 API
 @app.route("/api/lines")
 def lines():
     return jsonify(line_orders)
 
-# ✅ 시뮬레이션 열차 위치 정보 API
 @app.route("/api/simulation_data")
 def simulation_data():
     req_time = request.args.get("time")
@@ -53,35 +50,25 @@ def simulation_data():
         return jsonify([])
 
     df_active = df_timetable.copy()
-    df_active = df_active[
-        (df_active['LEFTTIME'] <= req_time) & 
-        (df_active['NEXT_ARRIVETIME'] >= req_time)
-    ]
-
-    # 종착역에서 멈춰있는 열차 추가 포함
-    df_arrived = df_timetable[
-        (df_timetable['NEXT_STATION'].isna()) &
-        (df_timetable['LEFTTIME'] <= req_time)
-    ]
-
-    df_active = pd.concat([df_active, df_arrived], ignore_index=True)
-
-    if selected_week != "전체":
-        df_active = df_active[df_active['WEEK_TAG'].astype(str) == selected_week]
-    if selected_direction != "전체":
-        df_active = df_active[df_active['INOUT_TAG'].astype(str) == selected_direction]
-    if selected_line != "전체":
-        df_active = df_active[df_active['LINE_NUM'] == selected_line]
+    df_active = df_active[df_active['WEEK_TAG'].astype(str) == selected_week] if selected_week != "전체" else df_active
+    df_active = df_active[df_active['INOUT_TAG'].astype(str) == selected_direction] if selected_direction != "전체" else df_active
+    df_active = df_active[df_active['LINE_NUM'] == selected_line] if selected_line != "전체" else df_active
 
     active_trains = []
     for _, row in df_active.iterrows():
         try:
+            t_arrive = datetime.strptime(row['ARRIVETIME'], "%H:%M:%S") if pd.notna(row['ARRIVETIME']) else None
+            t_left = datetime.strptime(row['LEFTTIME'], "%H:%M:%S") if pd.notna(row['LEFTTIME']) else None
+            t_next = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S") if pd.notna(row['NEXT_ARRIVETIME']) else None
+
             lat1, lon1 = station_dict.get(row['STATION_NM'], (None, None))
             lat2, lon2 = station_dict.get(row['NEXT_STATION'], (None, None))
+
             if lat1 is None:
                 continue
 
-            if pd.isna(row['NEXT_STATION']) or row['STATION_NM'] == row['NEXT_STATION']:
+            # 1. 정차 중
+            if t_arrive and t_left and t_arrive <= t_now < t_left:
                 active_trains.append({
                     'train_no': row['TRAIN_NO'],
                     'line': row['LINE_NUM'],
@@ -92,12 +79,10 @@ def simulation_data():
                 })
                 continue
 
-            if lat2 is not None:
-                t1 = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
-                t2 = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S")
-                progress = (t_now - t1).total_seconds() / (t2 - t1).total_seconds()
+            # 2. 이동 중
+            if t_left and t_next and t_left <= t_now <= t_next and lat2 is not None:
+                progress = (t_now - t_left).total_seconds() / (t_next - t_left).total_seconds()
                 progress = max(0, min(1, progress))
-
                 active_trains.append({
                     'train_no': row['TRAIN_NO'],
                     'line': row['LINE_NUM'],
@@ -106,6 +91,18 @@ def simulation_data():
                     'progress': progress,
                     'status': 'moving'
                 })
+                continue
+
+            # 3. 종착역 도달 (NEXT_STATION이 NaN이고 정차 종료됨)
+            if pd.isna(row['NEXT_STATION']) and t_left and t_now < t_left:
+                active_trains.append({
+                    'train_no': row['TRAIN_NO'],
+                    'line': row['LINE_NUM'],
+                    'from': row['STATION_NM'],
+                    'to': row['STATION_NM'],
+                    'progress': 0,
+                    'status': 'stopped'
+                })
         except:
             continue
 
@@ -113,3 +110,4 @@ def simulation_data():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000, debug=True)
+
