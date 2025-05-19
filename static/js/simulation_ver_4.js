@@ -33,6 +33,7 @@ const directionSelect = document.getElementById("direction-select");
 const weekdaySelect = document.getElementById("weekday-select");
 const lineSelect = document.getElementById("line-select");
 const weatherSelect = document.getElementById("weather-select");
+const weatherToggle = document.getElementById("weather-toggle");  // 날씨 드래그 모드 토글
 
 // 시간 변환 함수
 function secondsToTimeString(seconds) {
@@ -189,17 +190,18 @@ function updateTrains(timeStr) {
     });
 }
 
-// ✅ 5. 드래그로 날씨 혼잡도 반영
+// ✅ 5. 드래그로 날씨 혼잡도 반영 (날씨 토글 켜져 있을 때만 작동)
 let rectangle = null;
 let startPoint = null;
 
 map.on("mousedown", (e) => {
+  if (!weatherToggle.checked) return;
   startPoint = e.latlng;
   if (rectangle) map.removeLayer(rectangle);
 });
 
 map.on("mousemove", (e) => {
-  if (!startPoint) return;
+  if (!weatherToggle.checked || !startPoint) return;
   const bounds = L.latLngBounds(startPoint, e.latlng);
   if (!rectangle) {
     rectangle = L.rectangle(bounds, { color: "red", weight: 1 }).addTo(map);
@@ -209,7 +211,7 @@ map.on("mousemove", (e) => {
 });
 
 map.on("mouseup", () => {
-  if (!rectangle) return;
+  if (!weatherToggle.checked || !rectangle) return;
   const bounds = rectangle.getBounds();
   const affectedStations = Object.entries(stationMarkers)
     .filter(([_, coord]) => bounds.contains(L.latLng(coord)))
