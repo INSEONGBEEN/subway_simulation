@@ -1,3 +1,4 @@
+# ✅ app_ver_2.py
 from flask import Flask, render_template, jsonify, request
 import pandas as pd
 import os
@@ -12,11 +13,12 @@ station_path = os.path.join("data", "station.csv")
 line_path = os.path.join("data", "line_orders.json")
 db_path = os.path.join("data", "preprocessed_timetable.db")
 
-# 📄 역 위치, 노선 불러오기
+# 📄 역 정보 및 노선 로딩
 df_station = pd.read_csv(station_path, encoding='utf-8')
 with open(line_path, encoding="utf-8") as f:
     line_orders = json.load(f)
 
+# 📍 역 좌표 딕셔너리
 station_dict = {row['역명']: (row['위도'], row['경도']) for _, row in df_station.iterrows()}
 
 @app.route("/")
@@ -47,24 +49,35 @@ def simulation_data():
     except:
         return jsonify([])
 
-    conn = sqlite3.connect(db_path)
-    query = f"""
+    # 📤 SQL 쿼리 with 조건
+    base_query = """
         SELECT TRAIN_NO, LINE_NUM, STATION_NM, ARRIVETIME, LEFTTIME, 
                NEXT_STATION, NEXT_ARRIVETIME, WEEK_TAG, INOUT_TAG
         FROM preprocessed_timetable
-        WHERE ARRIVETIME <= ? AND NEXT_ARRIVETIME >= ?
+        WHERE ? BETWEEN ARRIVETIME AND NEXT_ARRIVETIME
     """
-    params = [req_time, req_time]
-    df = pd.read_sql_query(query, conn, params=params)
-    conn.close()
+    conditions = []
+    params = [req_time]
 
     if selected_week != "전체":
-        df = df[df['WEEK_TAG'] == selected_week]
+        conditions.append("WEEK_TAG = ?")
+        params.append(selected_week)
     if selected_direction != "전체":
-        df = df[df['INOUT_TAG'] == selected_direction]
+        conditions.append("INOUT_TAG = ?")
+        params.append(selected_direction)
     if selected_line != "전체":
-        df = df[df['LINE_NUM'] == selected_line]
+        conditions.append("LINE_NUM = ?")
+        params.append(selected_line)
 
+    if conditions:
+        base_query += " AND " + " AND ".join(conditions)
+
+    # 🔍 SQL 실행
+    conn = sqlite3.connect(db_path)
+    df = pd.read_sql_query(base_query, conn, params=params)
+    conn.close()
+
+    # 🚇 열차 위치 계산
     active_trains = []
     for _, row in df.iterrows():
         train_no = row['TRAIN_NO']
@@ -81,22 +94,20 @@ def simulation_data():
             t_arrive = datetime.strptime(row['ARRIVETIME'], "%H:%M:%S")
             t_depart = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
             t_next_arrive = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S") if pd.notna(row['NEXT_ARRIVETIME']) else None
-            progress = 0.0
-            status = "stopped"
 
             if t_arrive <= t_now < t_depart:
                 # 정차 중
+                lat, lon = lat1, lon1
                 progress = 0
                 status = "stopped"
-                lat, lon = lat1, lon1
             elif t_depart <= t_now and t_next_arrive:
                 # 이동 중
                 total_time = (t_next_arrive - t_depart).total_seconds()
                 passed_time = (t_now - t_depart).total_seconds()
                 progress = max(0, min(1, passed_time / total_time))
-                status = "moving"
                 lat = lat1 + (lat2 - lat1) * progress
                 lon = lon1 + (lon2 - lon1) * progress
+                status = "moving"
             elif pd.isna(row['NEXT_ARRIVETIME']):
                 # 종착역
                 lat, lon = lat1, lon1
