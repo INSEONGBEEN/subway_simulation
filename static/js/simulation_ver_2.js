@@ -130,21 +130,7 @@ function updateTrains(timeStr) {
 
         const icon = L.divIcon({
           className: 'emoji-icon',
-          html: train.status === 'stopped' ? `
-            <div class="blinker" style="
-              font-size: 12px;
-              color: white;
-              border: 1px solid ${color};
-              border-radius: 50%;
-              width: 14px;
-              height: 14px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              background-color: ${color};
-              animation: blink 1s infinite;
-            ">🚇</div>` : `
-            <div style="
+          html: `<div style="
               font-size: 12px;
               color: white;
               border: 1px solid ${color};
@@ -171,7 +157,6 @@ function updateTrains(timeStr) {
         }
       });
 
-      // ❌ 종착역 도달한 열차만 제거
       for (const key in trainMarkers) {
         if (!activeIds.has(key)) {
           map.removeLayer(trainMarkers[key]);
