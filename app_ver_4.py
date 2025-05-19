@@ -8,7 +8,7 @@ import ast
 
 app = Flask(__name__)
 
-# 📁 경로 설정
+# 📁 경로 설정 db는 sql 처리
 station_path = os.path.join("data", "station.csv")
 line_path = os.path.join("data", "line_orders.json")
 db_path = os.path.join("data", "preprocessed_timetable.db")
