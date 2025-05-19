@@ -1,4 +1,4 @@
-// ✅ 0. 노선 색상 정의는 가장 먼저 위칭
+// ✅ 0. 노선 색상 정의
 const lineColors = {
   "1호선": "blue",
   "2호선": "green",
@@ -49,7 +49,7 @@ function animateMove(marker, fromLatLng, toLatLng, duration = 1000) {
   requestAnimationFrame(step);
 }
 
-// ✅ 2. 역 + 선로 표시
+// ✅ 2. 역 및 선로 렌더링
 fetch('/api/stations')
   .then(res => res.json())
   .then(stations => {
@@ -115,44 +115,57 @@ function updateTrains(timeStr) {
     .then(res => res.json())
     .then(data => {
       const activeIds = new Set();
+
       data.forEach(train => {
         const from = stationMarkers[train.from];
         const to = stationMarkers[train.to];
         if (!from || !to) return;
 
-        const lat = train.progress === -1 ? from[0] : from[0] + (to[0] - from[0]) * train.progress;
-        const lon = train.progress === -1 ? from[1] : from[1] + (to[1] - from[1]) * train.progress;
-        const lineStr = `${parseInt(train.line)}호선`;
-        const color = lineColors[lineStr] || 'gray';
+        const lat = from[0] + (to[0] - from[0]) * train.progress;
+        const lon = from[1] + (to[1] - from[1]) * train.progress;
+        const lineName = `${parseInt(train.line)}호선`;
+        const color = lineColors[lineName] || 'gray';
         const key = train.train_no;
+        activeIds.add(key);
 
         const icon = L.divIcon({
           className: 'emoji-icon',
-          html: `<div style="
-            font-size: 12px;
-            color: white;
-            border: 1px solid ${color};
-            border-radius: 50%;
-            width: 14px;
-            height: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: ${color};
-            ${train.progress === -1 ? 'animation: blink 1s step-start infinite;' : ''}
-          ">🚇</div>`,
+          html: train.status === 'stopped' ? `
+            <div class="blinker" style="
+              font-size: 12px;
+              color: white;
+              border: 1px solid ${color};
+              border-radius: 50%;
+              width: 14px;
+              height: 14px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background-color: ${color};
+              animation: blink 1s infinite;
+            ">🚇</div>` : `
+            <div style="
+              font-size: 12px;
+              color: white;
+              border: 1px solid ${color};
+              border-radius: 50%;
+              width: 14px;
+              height: 14px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background-color: ${color};
+            ">🚇</div>`,
           iconSize: [14, 14],
           iconAnchor: [7, 7]
         });
-
-        activeIds.add(key);
 
         if (trainMarkers[key]) {
           const prev = trainMarkers[key].getLatLng();
           animateMove(trainMarkers[key], prev, L.latLng(lat, lon), 1000);
         } else {
           const marker = L.marker([lat, lon], { icon: icon })
-            .bindPopup(`🚆 ${lineStr}<br>${train.train_no}<br>→ ${train.to}`);
+            .bindPopup(`🚆 ${lineName}<br>${train.train_no}<br>→ ${train.to}`);
           marker.addTo(map);
           trainMarkers[key] = marker;
         }
@@ -167,13 +180,3 @@ function updateTrains(timeStr) {
     })
     .catch(err => console.error("🚨 로딩 실패:", err));
 }
-
-// CSS Animation 추가용
-const style = document.createElement('style');
-style.innerHTML = `
-@keyframes blink {
-  0%   { background-color: red; }
-  50%  { background-color: white; }
-  100% { background-color: red; }
-}`;
-document.head.appendChild(style);
