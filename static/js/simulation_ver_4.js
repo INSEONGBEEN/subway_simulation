@@ -218,7 +218,7 @@ map.on("mouseup", () => {
     .map(([name]) => name);
 
   affectedStations.forEach(name => congestedStations.add(name));
-  alert(`🚦 ${affectedStations.length}개 역에 혼잡도 영향 적용됨`);
+  alert(`🚦 ${affectedStations.length}개 역에 날씨 적용됨`);
 
   map.removeLayer(rectangle);
   rectangle = null;
