@@ -71,7 +71,7 @@ fetch('/api/stations')
       .then(res => res.json())
       .then(lines => {
         for (const [lineName, stationList] of Object.entries(lines)) {
-          const baseLine = lineName.match(/\d+호선/);
+          const baseLine = lineName.match(/\d+\uD638\uC120/);
           const color = baseLine ? lineColors[baseLine[0]] : 'gray';
           const coords = stationList.map(name => stationMarkers[name]).filter(Boolean);
           if (coords.length >= 2) {
@@ -150,7 +150,7 @@ function updateTrains(timeStr) {
           animateMove(trainMarkers[key], prev, L.latLng(lat, lon), 1000);
         } else {
           const marker = L.marker([lat, lon], { icon: icon })
-            .bindPopup(`🚆 ${lineName}<br>${train.train_no}<br>→ ${train.to}`);
+            .bindPopup(`🚆 ${lineName}<br>${train.train_no}<br>→ ${train.to}<br>⏱️ 누적 지연: ${train.delay || 0}초`);
           marker.addTo(map);
           trainMarkers[key] = marker;
         }
