@@ -24,7 +24,7 @@ let currentSimTimeSec = 9 * 3600;
 let speedMultiplier = 1;
 let congestedStations = new Set();
 let weatherLevel = "none";
-let delayMap = {};  // 🆕 누적 지연 시간 저장용
+let delayMap = {};  // 누적 지연 시간 저장
 
 const timeLabel = document.getElementById("timeLabel");
 const speedSelect = document.getElementById("speed-select");
@@ -35,6 +35,7 @@ const weekdaySelect = document.getElementById("weekday-select");
 const lineSelect = document.getElementById("line-select");
 const weatherSelect = document.getElementById("weather-select");
 
+// ✅ 시간 변환 함수
 function secondsToTimeString(seconds) {
   const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
   const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
@@ -88,7 +89,7 @@ fetch('/api/stations')
       });
   });
 
-// ▶️ 시작
+// ▶️ 시뮬레이션 시작
 startBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   simInterval = setInterval(() => {
@@ -106,7 +107,7 @@ resetBtn.addEventListener("click", () => {
   currentSimTimeSec = 9 * 3600;
   timeLabel.innerText = "09:00:00";
   congestedStations.clear();
-  delayMap = {};  // 누적 시간 초기화
+  delayMap = {};
 });
 
 speedSelect.addEventListener("change", () => {
@@ -145,9 +146,10 @@ function updateTrains(timeStr) {
         const key = train.train_no;
         activeIds.add(key);
 
-        // 🆕 누적 지연 시간 관리
-        const currentDelay = parseInt(train.delay || 0);
-        delayMap[key] = (delayMap[key] || 0) + currentDelay;
+        // ✅ 누적 지연은 프론트에서 관리 (역 도착 시만 누적)
+        if (train.status === "stopped" && parseFloat(train.progress) === 0) {
+          delayMap[key] = (delayMap[key] || 0) + parseInt(train.delay || 0);
+        }
 
         const icon = L.divIcon({
           className: 'emoji-icon',
@@ -171,7 +173,7 @@ function updateTrains(timeStr) {
           🚆 ${lineName}<br>
           열차번호: ${train.train_no}<br>
           다음역: ${train.to}<br>
-          ⏱️ 누적 지연: ${delayMap[key]}초
+          ⏱️ 누적 지연: ${delayMap[key] || 0}초
         `;
 
         if (trainMarkers[key]) {
@@ -189,21 +191,19 @@ function updateTrains(timeStr) {
         if (!activeIds.has(key)) {
           map.removeLayer(trainMarkers[key]);
           delete trainMarkers[key];
-          delete delayMap[key];  // 제거 시 지연도 초기화
+          delete delayMap[key];
         }
       }
     });
 }
 
-// ✅ 5. 드래그로 날씨 혼잡도 반영
+// ✅ 5. 드래그로 날씨 영향 반영
 let rectangle = null;
 let startPoint = null;
 
 map.on("mousedown", (e) => {
-  if (e.originalEvent.shiftKey) {
-    startPoint = e.latlng;
-    if (rectangle) map.removeLayer(rectangle);
-  }
+  startPoint = e.latlng;
+  if (rectangle) map.removeLayer(rectangle);
 });
 
 map.on("mousemove", (e) => {
@@ -224,7 +224,7 @@ map.on("mouseup", () => {
     .map(([name]) => name);
 
   affectedStations.forEach(name => congestedStations.add(name));
-  alert(`🌦️ 날씨 적용됨: ${affectedStations.length}개 역`);
+  alert(`🌧️ 날씨 적용: ${affectedStations.length}개 역`);
 
   map.removeLayer(rectangle);
   rectangle = null;
