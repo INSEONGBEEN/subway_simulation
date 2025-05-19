@@ -22,6 +22,8 @@ let trainMarkers = {};
 let simInterval = null;
 let currentSimTimeSec = 9 * 3600;
 let speedMultiplier = 1;
+let congestedStations = new Set();
+let weatherLevel = "none";
 
 const timeLabel = document.getElementById("timeLabel");
 const speedSelect = document.getElementById("speed-select");
@@ -30,6 +32,7 @@ const resetBtn = document.getElementById("reset-btn");
 const directionSelect = document.getElementById("direction-select");
 const weekdaySelect = document.getElementById("weekday-select");
 const lineSelect = document.getElementById("line-select");
+const weatherSelect = document.getElementById("weather-select");
 
 // 시간 변환 함수
 function secondsToTimeString(seconds) {
@@ -71,7 +74,7 @@ fetch('/api/stations')
       .then(res => res.json())
       .then(lines => {
         for (const [lineName, stationList] of Object.entries(lines)) {
-          const baseLine = lineName.match(/\d+\uD638\uC120/);
+          const baseLine = lineName.match(/\d+호선/);
           const color = baseLine ? lineColors[baseLine[0]] : 'gray';
           const coords = stationList.map(name => stationMarkers[name]).filter(Boolean);
           if (coords.length >= 2) {
@@ -102,10 +105,15 @@ resetBtn.addEventListener("click", () => {
   trainMarkers = {};
   currentSimTimeSec = 9 * 3600;
   timeLabel.innerText = "09:00:00";
+  congestedStations.clear();
 });
 
 speedSelect.addEventListener("change", () => {
   speedMultiplier = parseInt(speedSelect.value);
+});
+
+weatherSelect.addEventListener("change", () => {
+  weatherLevel = weatherSelect.value;
 });
 
 // ✅ 4. 열차 위치 업데이트
@@ -114,7 +122,16 @@ function updateTrains(timeStr) {
   const weekday = weekdaySelect.value;
   const line = lineSelect.value;
 
-  fetch(`/api/simulation_data?time=${timeStr}&direction=${direction}&weekday=${weekday}&line=${line}`)
+  const params = new URLSearchParams({
+    time: timeStr,
+    direction: direction,
+    weekday: weekday,
+    line: line,
+    congested: JSON.stringify([...congestedStations]),
+    weather: weatherLevel
+  });
+
+  fetch(`/api/simulation_data?${params.toString()}`)
     .then(res => res.json())
     .then(data => {
       const activeIds = new Set();
@@ -145,12 +162,19 @@ function updateTrains(timeStr) {
           iconAnchor: [7, 7]
         });
 
+        const popupText = `
+          🚆 ${lineName}<br>
+          열차번호: ${train.train_no}<br>
+          다음역: ${train.to}<br>
+          ⏱️ 누적 지연: ${train.delay || 0}초
+        `;
+
         if (trainMarkers[key]) {
           const prev = trainMarkers[key].getLatLng();
           animateMove(trainMarkers[key], prev, L.latLng(lat, lon), 1000);
+          trainMarkers[key].setPopupContent(popupText);
         } else {
-          const marker = L.marker([lat, lon], { icon: icon })
-            .bindPopup(`🚆 ${lineName}<br>${train.train_no}<br>→ ${train.to}<br>⏱️ 누적 지연: ${train.delay || 0}초`);
+          const marker = L.marker([lat, lon], { icon: icon }).bindPopup(popupText);
           marker.addTo(map);
           trainMarkers[key] = marker;
         }
@@ -165,15 +189,13 @@ function updateTrains(timeStr) {
     });
 }
 
-// ✅ 5. 드래그 영역 선택 및 날씨 혼잡도 반영
+// ✅ 5. 드래그로 날씨 혼잡도 반영
 let rectangle = null;
 let startPoint = null;
 
 map.on("mousedown", (e) => {
   startPoint = e.latlng;
-  if (rectangle) {
-    map.removeLayer(rectangle);
-  }
+  if (rectangle) map.removeLayer(rectangle);
 });
 
 map.on("mousemove", (e) => {
@@ -193,25 +215,13 @@ map.on("mouseup", () => {
     .filter(([_, coord]) => bounds.contains(L.latLng(coord)))
     .map(([name]) => name);
 
-  if (affectedStations.length > 0) {
-    const weatherEffect = prompt("🌦️ 날씨에 따른 혼잡도 증가치 (%)를 입력하세요 (예: 20)");
-    const delta = parseInt(weatherEffect || "0");
-    if (!isNaN(delta)) {
-      fetch("/api/update_congestion", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ stations: affectedStations, delta: delta })
-      }).then(res => {
-        if (res.ok) {
-          alert("혼잡도 업데이트 완료 ✅");
-        }
-      });
-    }
-  }
+  affectedStations.forEach(name => congestedStations.add(name));
+  alert(`🚦 ${affectedStations.length}개 역에 혼잡도 영향 적용됨`);
 
   map.removeLayer(rectangle);
+  rectangle = null;
+  startPoint = null;
+});
   rectangle = null;
   startPoint = null;
 });
