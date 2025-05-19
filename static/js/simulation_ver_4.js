@@ -202,8 +202,10 @@ let rectangle = null;
 let startPoint = null;
 
 map.on("mousedown", (e) => {
-  startPoint = e.latlng;
-  if (rectangle) map.removeLayer(rectangle);
+  if (e.originalEvent.shiftKey) {
+    startPoint = e.latlng;
+    if (rectangle) map.removeLayer(rectangle);
+  }
 });
 
 map.on("mousemove", (e) => {
