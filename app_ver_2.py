@@ -36,9 +36,9 @@ def lines():
 @app.route("/api/simulation_data")
 def simulation_data():
     req_time = request.args.get("time")
-    selected_week = request.args.get("weekday", "3")       # 평일 = 3
-    selected_direction = request.args.get("direction", "전체")  # 상/하행 또는 전체
-    selected_line = request.args.get("line", "전체")        # 호선 선택 또는 전체
+    selected_week = request.args.get("weekday", "3")
+    selected_direction = request.args.get("direction", "전체")
+    selected_line = request.args.get("line", "전체")
 
     if not req_time:
         return jsonify([])
@@ -48,10 +48,10 @@ def simulation_data():
     except:
         return jsonify([])
 
-    # 🔍 열차 필터링
+    # 🔍 진행 중 열차 + 정차 중 열차 모두 필터링
     df_active = df_timetable.copy()
     df_active = df_active[df_active['LEFTTIME'] <= req_time]
-    df_active = df_active[df_active['NEXT_ARRIVETIME'] >= req_time]
+    df_active = df_active[df_active['NEXT_ARRIVETIME'] >= req_time]  # 정차 포함
 
     if selected_week != "전체":
         df_active = df_active[df_active['WEEK_TAG'].astype(str) == selected_week]
@@ -65,31 +65,28 @@ def simulation_data():
     active_trains = []
     for _, row in df_active.iterrows():
         try:
-            is_terminal = pd.isna(row['NEXT_STATION'])
-            is_waiting = row['LEFTTIME'] == row['NEXT_ARRIVETIME']
-
-            if is_terminal:
-                continue  # 도착 후 이동 없음
-
             t1 = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
             t2 = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S")
-            total = (t2 - t1).total_seconds()
-            progress = (t_now - t1).total_seconds() / total if total > 0 else 0
+            progress = (t_now - t1).total_seconds() / (t2 - t1).total_seconds()
             progress = max(0, min(1, progress))
 
             lat1, lon1 = station_dict.get(row['STATION_NM'], (None, None))
             lat2, lon2 = station_dict.get(row['NEXT_STATION'], (None, None))
 
-            if lat1 is not None and lat2 is not None:
-                active_trains.append({
-                    'train_no': row['TRAIN_NO'],
-                    'line': row['LINE_NUM'],
-                    'from': row['STATION_NM'],
-                    'to': row['NEXT_STATION'],
-                    'progress': progress,
-                    'is_waiting': is_waiting,
-                    'is_terminal': is_terminal
-                })
+            if lat1 is not None:
+                # 정차 중: NEXT_STATION이 NaN이거나 동일역
+                if pd.isna(row['NEXT_STATION']) or row['STATION_NM'] == row['NEXT_STATION']:
+                    lat2, lon2 = lat1, lon1
+                    progress = -1  # 정차 상태로 표시
+
+                if lat2 is not None:
+                    active_trains.append({
+                        'train_no': row['TRAIN_NO'],
+                        'line': row['LINE_NUM'],
+                        'from': row['STATION_NM'],
+                        'to': row['NEXT_STATION'] if pd.notna(row['NEXT_STATION']) else row['STATION_NM'],
+                        'progress': progress
+                    })
 
         except Exception as e:
             print("Error in row processing:", e)
