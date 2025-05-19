@@ -24,6 +24,7 @@ let currentSimTimeSec = 9 * 3600;
 let speedMultiplier = 1;
 let congestedStations = new Set();
 let weatherLevel = "none";
+let delayMap = {};  // 🆕 누적 지연 시간 저장용
 
 const timeLabel = document.getElementById("timeLabel");
 const speedSelect = document.getElementById("speed-select");
@@ -33,9 +34,7 @@ const directionSelect = document.getElementById("direction-select");
 const weekdaySelect = document.getElementById("weekday-select");
 const lineSelect = document.getElementById("line-select");
 const weatherSelect = document.getElementById("weather-select");
-const weatherToggle = document.getElementById("weather-toggle");  // 날씨 드래그 모드 토글
 
-// 시간 변환 함수
 function secondsToTimeString(seconds) {
   const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
   const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
@@ -89,7 +88,7 @@ fetch('/api/stations')
       });
   });
 
-// ▶️ 시뮬레이션 시작
+// ▶️ 시작
 startBtn.addEventListener("click", () => {
   if (simInterval) clearInterval(simInterval);
   simInterval = setInterval(() => {
@@ -107,6 +106,7 @@ resetBtn.addEventListener("click", () => {
   currentSimTimeSec = 9 * 3600;
   timeLabel.innerText = "09:00:00";
   congestedStations.clear();
+  delayMap = {};  // 누적 시간 초기화
 });
 
 speedSelect.addEventListener("change", () => {
@@ -145,6 +145,10 @@ function updateTrains(timeStr) {
         const key = train.train_no;
         activeIds.add(key);
 
+        // 🆕 누적 지연 시간 관리
+        const currentDelay = parseInt(train.delay || 0);
+        delayMap[key] = (delayMap[key] || 0) + currentDelay;
+
         const icon = L.divIcon({
           className: 'emoji-icon',
           html: `<div style="
@@ -167,7 +171,7 @@ function updateTrains(timeStr) {
           🚆 ${lineName}<br>
           열차번호: ${train.train_no}<br>
           다음역: ${train.to}<br>
-          ⏱️ 누적 지연: ${train.delay || 0}초
+          ⏱️ 누적 지연: ${delayMap[key]}초
         `;
 
         if (trainMarkers[key]) {
@@ -185,23 +189,25 @@ function updateTrains(timeStr) {
         if (!activeIds.has(key)) {
           map.removeLayer(trainMarkers[key]);
           delete trainMarkers[key];
+          delete delayMap[key];  // 제거 시 지연도 초기화
         }
       }
     });
 }
 
-// ✅ 5. 드래그로 날씨 혼잡도 반영 (날씨 토글 켜져 있을 때만 작동)
+// ✅ 5. 드래그로 날씨 혼잡도 반영
 let rectangle = null;
 let startPoint = null;
 
 map.on("mousedown", (e) => {
-  if (!weatherToggle.checked) return;
-  startPoint = e.latlng;
-  if (rectangle) map.removeLayer(rectangle);
+  if (e.originalEvent.shiftKey) {
+    startPoint = e.latlng;
+    if (rectangle) map.removeLayer(rectangle);
+  }
 });
 
 map.on("mousemove", (e) => {
-  if (!weatherToggle.checked || !startPoint) return;
+  if (!startPoint) return;
   const bounds = L.latLngBounds(startPoint, e.latlng);
   if (!rectangle) {
     rectangle = L.rectangle(bounds, { color: "red", weight: 1 }).addTo(map);
@@ -211,14 +217,14 @@ map.on("mousemove", (e) => {
 });
 
 map.on("mouseup", () => {
-  if (!weatherToggle.checked || !rectangle) return;
+  if (!rectangle) return;
   const bounds = rectangle.getBounds();
   const affectedStations = Object.entries(stationMarkers)
     .filter(([_, coord]) => bounds.contains(L.latLng(coord)))
     .map(([name]) => name);
 
   affectedStations.forEach(name => congestedStations.add(name));
-  alert(`🚦 ${affectedStations.length}개 역에 날씨 적용됨`);
+  alert(`🌦️ 날씨 적용됨: ${affectedStations.length}개 역`);
 
   map.removeLayer(rectangle);
   rectangle = null;
