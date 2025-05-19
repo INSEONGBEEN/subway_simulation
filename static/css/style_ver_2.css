@@ -14,14 +14,13 @@ body {
   height: 90vh;
 }
 
-/* 🚇 정차 중 열차 마커엥 깜빡임 효과 */
-.emoji-icon .blinking {
-  animation: blink 1s step-start 0s infinite;
+/* 🚇 정차 중 열차 마커에 깜빡임 효과 */
+@keyframes blink {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.3; background-color: red; border-color: red; }
+  100% { opacity: 1; }
 }
 
-@keyframes blink {
-  50% {
-    background-color: red !important;
-    border-color: red !important;
-  }
+.emoji-icon .blinker {
+  animation: blink 1s infinite;
 }
