@@ -14,7 +14,7 @@ body {
   height: 90vh;
 }
 
-/* 🚇 정차 중 열차 마커에 깜빡임 효과 */
+/* 🚇 정차 중 열차 마커엥 깜빡임 효과 */
 .emoji-icon .blinking {
   animation: blink 1s step-start 0s infinite;
 }
