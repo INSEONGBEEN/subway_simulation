@@ -1,3 +1,4 @@
+# ✅ app_ver_3.py
 from flask import Flask, render_template, jsonify, request
 import pandas as pd
 import os
@@ -22,7 +23,7 @@ station_dict = {row['역명']: (row['위도'], row['경도']) for _, row in df_s
 
 @app.route("/")
 def index():
-    return render_template("index_ver_2.html")
+    return render_template("index_ver_3.html")
 
 @app.route("/api/stations")
 def stations():
@@ -48,48 +49,54 @@ def simulation_data():
     except:
         return jsonify([])
 
-    # 🔍 진행 중 열차 + 정차 중 열차 모두 필터링
     df_active = df_timetable.copy()
-    df_active = df_active[df_active['LEFTTIME'] <= req_time]
-    df_active = df_active[df_active['NEXT_ARRIVETIME'] >= req_time]  # 정차 포함
+    df_active = df_active[
+        (df_active['LEFTTIME'] <= req_time) & 
+        (df_active['NEXT_ARRIVETIME'] >= req_time)
+    ]
 
     if selected_week != "전체":
         df_active = df_active[df_active['WEEK_TAG'].astype(str) == selected_week]
-
     if selected_direction != "전체":
         df_active = df_active[df_active['INOUT_TAG'].astype(str) == selected_direction]
-
     if selected_line != "전체":
         df_active = df_active[df_active['LINE_NUM'] == selected_line]
 
     active_trains = []
     for _, row in df_active.iterrows():
         try:
-            t1 = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
-            t2 = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S")
-            progress = (t_now - t1).total_seconds() / (t2 - t1).total_seconds()
-            progress = max(0, min(1, progress))
-
             lat1, lon1 = station_dict.get(row['STATION_NM'], (None, None))
             lat2, lon2 = station_dict.get(row['NEXT_STATION'], (None, None))
+            if lat1 is None:
+                continue
 
-            if lat1 is not None:
-                # 정차 중: NEXT_STATION이 NaN이거나 동일역
-                if pd.isna(row['NEXT_STATION']) or row['STATION_NM'] == row['NEXT_STATION']:
-                    lat2, lon2 = lat1, lon1
-                    progress = -1  # 정차 상태로 표시
+            # 정차 상태: 같은 역에 머물고 있는 경우
+            if row['STATION_NM'] == row['NEXT_STATION'] or pd.isna(row['NEXT_STATION']):
+                active_trains.append({
+                    'train_no': row['TRAIN_NO'],
+                    'line': row['LINE_NUM'],
+                    'from': row['STATION_NM'],
+                    'to': row['NEXT_STATION'] if pd.notna(row['NEXT_STATION']) else row['STATION_NM'],
+                    'progress': 0,
+                    'status': 'stopped'
+                })
+                continue
 
-                if lat2 is not None:
-                    active_trains.append({
-                        'train_no': row['TRAIN_NO'],
-                        'line': row['LINE_NUM'],
-                        'from': row['STATION_NM'],
-                        'to': row['NEXT_STATION'] if pd.notna(row['NEXT_STATION']) else row['STATION_NM'],
-                        'progress': progress
-                    })
+            if lat2 is not None:
+                t1 = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
+                t2 = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S")
+                progress = (t_now - t1).total_seconds() / (t2 - t1).total_seconds()
+                progress = max(0, min(1, progress))
 
-        except Exception as e:
-            print("Error in row processing:", e)
+                active_trains.append({
+                    'train_no': row['TRAIN_NO'],
+                    'line': row['LINE_NUM'],
+                    'from': row['STATION_NM'],
+                    'to': row['NEXT_STATION'],
+                    'progress': progress,
+                    'status': 'moving'
+                })
+        except:
             continue
 
     return jsonify(active_trains)
