@@ -50,74 +50,48 @@ def simulation_data():
         return jsonify([])
 
     df_active = df_timetable.copy()
-
-    # 정차 중 or 이동 중 조건 필터링
-    df_active = df_active[
-        ((df_active['ARRIVETIME'] <= req_time) & (df_active['LEFTTIME'] > req_time)) |
-        ((df_active['LEFTTIME'] <= req_time) & (df_active['NEXT_ARRIVETIME'] >= req_time))
-    ]
-
-    if selected_week != "전체":
-        df_active = df_active[df_active['WEEK_TAG'].astype(str) == selected_week]
-    if selected_direction != "전체":
-        df_active = df_active[df_active['INOUT_TAG'].astype(str) == selected_direction]
-    if selected_line != "전체":
-        df_active = df_active[df_active['LINE_NUM'] == selected_line]
+    df_active = df_active[df_active['WEEK_TAG'].astype(str) == selected_week if selected_week != "전체" else True]
+    df_active = df_active[df_active['INOUT_TAG'].astype(str) == selected_direction if selected_direction != "전체" else True]
+    df_active = df_active[df_active['LINE_NUM'] == selected_line if selected_line != "전체" else True]
 
     active_trains = []
-
     for _, row in df_active.iterrows():
         try:
-            train_no = row['TRAIN_NO']
-            line = row['LINE_NUM']
-            from_station = row['STATION_NM']
-            to_station = row['NEXT_STATION']
+            t_arrive = datetime.strptime(row['ARRIVETIME'], "%H:%M:%S")
+            t_left = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
+            t_next = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S")
 
-            lat1, lon1 = station_dict.get(from_station, (None, None))
-            lat2, lon2 = station_dict.get(to_station, (None, None))
-
+            lat1, lon1 = station_dict.get(row['STATION_NM'], (None, None))
+            lat2, lon2 = station_dict.get(row['NEXT_STATION'], (None, None))
             if lat1 is None:
                 continue
 
-            # 시간 객체 변환
-            t_arr = datetime.strptime(row['ARRIVETIME'], "%H:%M:%S")
-            t_dep = datetime.strptime(row['LEFTTIME'], "%H:%M:%S")
-            t_next = None
-            if pd.notna(row['NEXT_ARRIVETIME']):
-                t_next = datetime.strptime(row['NEXT_ARRIVETIME'], "%H:%M:%S")
-
-            # 정차 중
-            if t_arr <= t_now < t_dep:
+            if t_arrive <= t_now < t_left:
+                # 정차 상태
                 active_trains.append({
-                    "train_no": train_no,
-                    "line": line,
-                    "from": from_station,
-                    "to": from_station,  # 정차 중인 경우 위치 동일
-                    "progress": 0,
-                    "status": "stopped"
+                    'train_no': row['TRAIN_NO'],
+                    'line': row['LINE_NUM'],
+                    'from': row['STATION_NM'],
+                    'to': row['NEXT_STATION'] if pd.notna(row['NEXT_STATION']) else row['STATION_NM'],
+                    'progress': 0,
+                    'status': 'stopped'
                 })
-
-            # 이동 중
-            elif t_dep <= t_now and t_next is not None and t_now <= t_next and lat2 is not None:
-                total_time = (t_next - t_dep).total_seconds()
-                elapsed = (t_now - t_dep).total_seconds()
-                progress = max(0, min(1, elapsed / total_time))
-
+            elif t_left <= t_now < t_next and lat2 is not None:
+                # 이동 중
+                progress = (t_now - t_left).total_seconds() / (t_next - t_left).total_seconds()
+                progress = max(0, min(1, progress))
                 active_trains.append({
-                    "train_no": train_no,
-                    "line": line,
-                    "from": from_station,
-                    "to": to_station,
-                    "progress": progress,
-                    "status": "moving"
+                    'train_no': row['TRAIN_NO'],
+                    'line': row['LINE_NUM'],
+                    'from': row['STATION_NM'],
+                    'to': row['NEXT_STATION'],
+                    'progress': progress,
+                    'status': 'moving'
                 })
-
-        except Exception as e:
-            print("❌ Error parsing row:", e)
+        except:
             continue
 
     return jsonify(active_trains)
 
-# ✅ 실행
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000, debug=True)
