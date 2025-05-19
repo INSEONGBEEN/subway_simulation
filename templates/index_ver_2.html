@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🚇 지하철 시뮬레이션 (ver.2)</title>
+
+  <!-- Leaflet & Axios -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style_ver_2.css') }}" />
+</head>
+<body>
+  <div id="controls">
+    <h2>🚇 지하철 시뮬레이션 (ver.2)</h2>
+
+    <!-- 시간 제어 -->
+    <label for="speed-select">⏩ 배속:</label>
+    <select id="speed-select">
+      <option value="1">1x</option>
+      <option value="2">2x</option>
+      <option value="5">5x</option>
+      <option value="10">10x</option>
+    </select>
+
+    <span id="timeLabel">09:00:00</span>
+
+    <button id="start-btn">▶️ 시작</button>
+    <button id="reset-btn">⏹️ 초기화</button>
+
+    <!-- 필터 선택 -->
+    <br><br>
+    <label for="weekday-select">📅 요일:</label>
+    <select id="weekday-select">
+      <option value="전체">전체</option>
+      <option value="3">평일</option>
+      <option value="2">토요일</option>
+      <option value="1">공휴일</option>
+    </select>
+
+    <label for="direction-select">⬆⬇ 방향:</label>
+    <select id="direction-select">
+      <option value="전체">전체</option>
+      <option value="1">상행</option>
+      <option value="2">하행</option>
+    </select>
+
+    <label for="line-select">🚈 호선:</label>
+    <select id="line-select">
+      <option value="전체">전체</option>
+      <option value="01호선">1호선</option>
+      <option value="02호선">2호선</option>
+      <option value="03호선">3호선</option>
+      <option value="04호선">4호선</option>
+      <option value="05호선">5호선</option>
+      <option value="06호선">6호선</option>
+      <option value="07호선">7호선</option>
+      <option value="08호선">8호선</option>
+    </select>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- JS 로딩 -->
+  <script src="{{ url_for('static', filename='js/simulation_ver_2.js') }}"></script>
+</body>
+</html>
