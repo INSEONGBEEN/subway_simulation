@@ -1,0 +1,45 @@
+/* 전체 레이아웃 기본 */
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+#controls {
+  padding: 10px;
+  background-color: #f0f0f0;
+  border-bottom: 1px solid #ccc;
+}
+#map {
+  width: 100%;
+  height: 90vh;
+}
+
+/* 드래그 영역 박스 */
+.selection-rectangle {
+  position: absolute;
+  border: 2px dashed #ff6600;
+  background-color: rgba(255, 165, 0, 0.2);
+  pointer-events: none;
+  z-index: 999;
+}
+
+/* 드래그 영역 내 포함된 역 마커 강조 */
+.station-selected {
+  stroke: red;
+  stroke-width: 2px;
+}
+
+/* 날씨 선택 UI */
+.weather-controls {
+  margin-top: 10px;
+}
+.weather-controls button {
+  margin-right: 5px;
+  padding: 6px 10px;
+  border: 1px solid #888;
+  background-color: #fff;
+  cursor: pointer;
+}
+.weather-controls button.selected {
+  background-color: #ffd700;
+  font-weight: bold;
+}
